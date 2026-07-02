@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P/O申請ガイド — LEENAI</title>
+<style>
+  :root {
+    --bg:          #0f1117;
+    --surface:     #181c27;
+    --surface2:    #1e2333;
+    --border:      #2a3050;
+    --accent:      #4f8ef7;
+    --accent2:     #38c98a;
+    --warn:        #f5a623;
+    --danger:      #e05c5c;
+    --text:        #e8ecf4;
+    --text2:       #8a94b0;
+    --text3:       #5a6480;
+    --fax-border:  #6b4fbb;
+    --mail-border: #2a7a5a;
+    --font-main:   'Segoe UI','Noto Sans JP',sans-serif;
+    --font-mono:   'Consolas','Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:14px;line-height:1.6;min-height:100vh;}
+
+  /* ── Header ── */
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:200;}
+  .logo{font-size:11px;font-weight:700;letter-spacing:3px;color:var(--accent);text-transform:uppercase;}
+  .header-title{font-size:15px;font-weight:600;color:var(--text);}
+  .header-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+  .header-badge{background:#1a2540;border:1px solid var(--border);color:var(--text2);font-size:11px;padding:3px 10px;border-radius:20px;}
+  #loginBtn{padding:6px 16px;border-radius:6px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;}
+  #loginBtn:hover{background:var(--accent);color:#fff;}
+  #userInfo{font-size:12px;color:var(--accent2);}
+
+  /* ── Container ── */
+  .container{max-width:1100px;margin:0 auto;padding:28px 24px 80px;}
+
+  /* ── BKG Search Panel ── */
+  #bkgPanel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;margin-bottom:32px;}
+  .panel-label{font-size:10px;font-weight:700;letter-spacing:3px;color:var(--accent);text-transform:uppercase;margin-bottom:10px;}
+  .bkg-search-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  #bkgInput{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:8px;font-size:14px;font-family:var(--font-mono);outline:none;width:260px;letter-spacing:1px;transition:border-color .15s;}
+  #bkgInput:focus{border-color:var(--accent);}
+  #bkgInput::placeholder{color:var(--text3);font-family:var(--font-main);letter-spacing:0;}
+  #bkgSearchBtn{padding:10px 22px;border-radius:8px;background:var(--accent);border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s;}
+  #bkgSearchBtn:hover{opacity:.85;}
+  #bkgSearchBtn:disabled{opacity:.4;cursor:default;}
+  #bkgResult{margin-top:16px;display:none;}
+
+  /* ── Result card ── */
+  .result-card{background:#10182e;border:2px solid var(--accent);border-radius:12px;padding:18px 20px;}
+  .result-title{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+  .result-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 20px;margin-bottom:16px;}
+  .result-item{font-size:12px;}
+  .result-key{color:var(--text3);font-size:11px;margin-bottom:2px;}
+  .result-val{color:var(--text);font-weight:600;}
+  .result-val.highlight-val{color:var(--accent2);font-size:14px;}
+  .pickup-date-box{background:#0a1f12;border:1px solid var(--accent2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .pickup-date-box .pd-label{font-size:11px;color:var(--accent2);font-weight:700;letter-spacing:1px;}
+  .pickup-date-box .pd-val{font-size:20px;font-weight:800;color:var(--accent2);}
+  .pickup-date-box .pd-note{font-size:11px;color:var(--text2);}
+  .goto-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:var(--accent);border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s;}
+  .goto-btn:hover{opacity:.85;}
+  .error-box{background:#2a0f0f;border:1px solid var(--danger);border-radius:8px;padding:12px 16px;color:var(--danger);font-size:13px;}
+  .loading-box{color:var(--text2);font-size:13px;display:flex;align-items:center;gap:8px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+
+  /* ── Section labels ── */
+  .section-label{font-size:10px;font-weight:700;letter-spacing:3px;color:var(--accent);text-transform:uppercase;margin-bottom:8px;}
+  .section-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:4px;}
+  .section-desc{color:var(--text2);font-size:13px;margin-bottom:24px;}
+
+  /* ── Flow ── */
+  .flow{display:flex;gap:0;margin-bottom:36px;overflow-x:auto;padding-bottom:4px;}
+  .flow-step{display:flex;align-items:center;flex-shrink:0;}
+  .flow-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 16px;font-size:12px;text-align:center;min-width:110px;}
+  .flow-box .step-num{font-size:10px;color:var(--accent);font-weight:700;letter-spacing:1px;display:block;margin-bottom:3px;}
+  .flow-box .step-text{color:var(--text);font-weight:600;}
+  .flow-box .step-sub{color:var(--text2);font-size:11px;margin-top:1px;}
+  .flow-arrow{color:var(--text3);font-size:18px;padding:0 6px;}
+  .flow-step.hl .flow-box{background:#162038;border-color:var(--accent);}
+
+  /* ── Info box ── */
+  .info-box{background:#12202e;border:1px solid #1e4060;border-left:3px solid var(--accent);border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:var(--text2);}
+  .info-box strong{color:var(--text);}
+
+  /* ── OneDrive links ── */
+  .od-row{display:flex;gap:10px;margin-bottom:32px;flex-wrap:wrap;}
+
+  /* ── Port tabs & search ── */
+  .filter-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+  .port-tabs{display:flex;gap:8px;flex-wrap:wrap;}
+  .port-tab{padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
+  .port-tab:hover{border-color:var(--accent);color:var(--accent);}
+  .port-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .search-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:6px;font-size:13px;outline:none;width:200px;transition:border-color .15s;}
+  .search-input:focus{border-color:var(--accent);}
+  .search-input::placeholder{color:var(--text3);}
+
+  /* ── Cards ── */
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px;margin-bottom:48px;}
+  .card{background:var(--surface);border:2px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s, box-shadow .2s;}
+  .card:hover{border-color:var(--accent);}
+  .card.matched{border-color:var(--accent2);box-shadow:0 0 0 4px rgba(56,201,138,.12);}
+  .card.matched .card-header{background:#0b1e14;}
+  .card.dimmed{opacity:.35;}
+  .card-header{display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--border);}
+  .carrier-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;letter-spacing:-.5px;}
+  .carrier-name{font-size:14px;font-weight:700;color:var(--text);}
+  .carrier-sub{font-size:11px;color:var(--text2);margin-top:1px;}
+  .method-badge{margin-left:auto;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.5px;flex-shrink:0;}
+  .method-fax{background:#2a1a4a;border:1px solid var(--fax-border);color:#b08af0;}
+  .method-mail{background:#0d2318;border:1px solid var(--mail-border);color:#5de4a8;}
+  .card-body{padding:13px 15px;}
+  .card-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;font-size:12px;}
+  .card-row:last-child{margin-bottom:0;}
+  .card-key{color:var(--text3);min-width:56px;font-size:11px;padding-top:1px;flex-shrink:0;}
+  .card-val{color:var(--text2);word-break:break-all;}
+  .card-val a{color:var(--accent);text-decoration:none;}
+  .card-val a:hover{text-decoration:underline;}
+  .card-footer{display:flex;gap:8px;padding:11px 15px;border-top:1px solid var(--border);flex-wrap:wrap;}
+
+  /* ── Buttons ── */
+  .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;text-decoration:none;transition:opacity .15s;}
+  .btn:hover{opacity:.85;}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-secondary{background:var(--surface2);border:1px solid var(--border);color:var(--text2);}
+  .btn-fax{background:#2a1a4a;border:1px solid var(--fax-border);color:#b08af0;}
+  .btn-mail{background:#0d2318;border:1px solid var(--mail-border);color:#5de4a8;}
+
+  /* ── Notes grid ── */
+  .notes-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:40px;}
+  @media(max-width:700px){.notes-grid{grid-template-columns:1fr;}.cards-grid{grid-template-columns:1fr;}.result-grid{grid-template-columns:1fr 1fr;}}
+  .note-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+  .note-card h3{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+  .note-list{list-style:none;}
+  .note-list li{font-size:12px;color:var(--text2);padding:4px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;}
+  .note-list li:last-child{border-bottom:none;}
+  .note-list li::before{content:'▸';color:var(--accent);flex-shrink:0;}
+
+  /* ── Collapsible ── */
+  .collapsible{background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
+  .collapsible-header{display:flex;align-items:center;padding:13px 16px;cursor:pointer;user-select:none;gap:10px;}
+  .collapsible-header:hover{background:#1e2438;}
+  .collapsible-title{font-weight:600;font-size:13px;flex:1;}
+  .collapsible-arrow{color:var(--text3);font-size:12px;transition:transform .2s;}
+  .collapsible.open .collapsible-arrow{transform:rotate(90deg);}
+  .collapsible-body{display:none;padding:0 16px 16px;}
+  .collapsible.open .collapsible-body{display:block;}
+
+  /* ── Table ── */
+  .ref-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
+  .ref-table th{background:var(--surface);color:var(--text2);padding:7px 10px;text-align:left;border:1px solid var(--border);font-weight:600;}
+  .ref-table td{padding:7px 10px;border:1px solid var(--border);color:var(--text2);vertical-align:top;}
+  code{font-family:var(--font-mono);background:#1a1f30;border:1px solid var(--border);padding:1px 5px;border-radius:4px;font-size:11px;color:#9ec8ff;}
+  .tag-warn{background:#2e1f00;border:1px solid #7a4f00;color:var(--warn);font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;}
+  .hidden{display:none!important;}
+
+  footer{border-top:1px solid var(--border);padding:18px 24px;text-align:center;color:var(--text3);font-size:11px;letter-spacing:1px;}
+  footer span{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="logo">LEENAI</div>
+  <div class="header-title">P/O申請ガイド</div>
+  <div class="header-right">
+    <div class="header-badge">株式会社リニア 社内資料</div>
+    <span id="userInfo" class="hidden"></span>
+    <button id="loginBtn" onclick="startLogin()">🔐 ログイン</button>
+  </div>
+</header>
+
+<!-- ══ MAIN ══ -->
+<div class="container">
+
+  <!-- ── BKG検索パネル ── -->
+  <div id="bkgPanel">
+    <div class="panel-label">🔍 COMPASS ブッキング検索</div>
+    <div class="bkg-search-row">
+      <input id="bkgInput" type="text" placeholder="BKG No を入力  例：SNKO040260600193"
+             onkeydown="if(event.key==='Enter')searchBkg()">
+      <button id="bkgSearchBtn" onclick="searchBkg()" disabled>検索</button>
+      <span id="loginHint" style="font-size:12px;color:var(--text3);">← まずログインしてください</span>
+    </div>
+    <div id="bkgResult"></div>
+  </div>
+
+  <!-- ── 概要 ── -->
+  <div class="section-label">OVERVIEW</div>
+  <div class="section-title">P/O 申請とは</div>
+  <div class="section-desc">輸出ブッキング後、船社または港湾ターミナルへ空コンテナの引き取り予約を行う業務です。申請方法は船社・港によって <strong>メール</strong> または <strong>FAX</strong> の2種類あります。</div>
+
+  <div class="flow">
+    <div class="flow-step hl"><div class="flow-box"><span class="step-num">STEP 1</span><div class="step-text">BKG No 検索</div><div class="step-sub">上の検索欄で入力</div></div></div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step"><div class="flow-box"><span class="step-num">STEP 2</span><div class="step-text">申請方法を確認</div><div class="step-sub">自動でカードへ移動</div></div></div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step"><div class="flow-box"><span class="step-num">STEP 3</span><div class="step-text">フォーム取得</div><div class="step-sub">OneDriveからDL</div></div></div>
+    <div class="flow-arrow">›</div>
+    <div class="flow-step"><div class="flow-box"><span class="step-num">STEP 4</span><div class="step-text">送信</div><div class="step-sub">メール or FAX</div></div></div>
+  </div>
+
+  <div class="info-box">
+    <strong>📅 ピックアップ希望日：</strong> CY OPEN日の <strong>1営業日前</strong>（土日・祝日は自動遡及）<br>
+    <strong>🗂 フォームファイル：</strong> 社内OneDriveの <code>PICK UP/</code> フォルダに格納。下のボタンでアクセス。
+  </div>
+
+  <div class="od-row">
+    <a class="btn btn-primary" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA" target="_blank">📁 OSAKA フォルダ</a>
+    <a class="btn btn-primary" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/KOBE" target="_blank">📁 KOBE フォルダ</a>
+    <a class="btn btn-secondary" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/PO%20EXCEL.xlsx" target="_blank">📊 PO EXCEL.xlsx</a>
+  </div>
+
+  <!-- ── 船社一覧 ── -->
+  <div class="section-label">CARRIER LIST</div>
+  <div class="section-title">港・船社別 申請一覧</div>
+  <div class="section-desc">BKG検索後は該当カードが自動ハイライトされます。</div>
+
+  <div class="filter-row">
+    <div class="port-tabs">
+      <button class="port-tab active" onclick="filterPort('ALL',this)">すべて</button>
+      <button class="port-tab" onclick="filterPort('OSAKA',this)">大阪</button>
+      <button class="port-tab" onclick="filterPort('KOBE',this)">神戸</button>
+    </div>
+    <input class="search-input" type="text" id="searchInput" placeholder="船社名で検索…" oninput="filterSearch()">
+    <button class="btn btn-secondary" id="clearMatchBtn" onclick="clearMatch()" style="display:none;">✕ ハイライト解除</button>
+  </div>
+
+  <div class="cards-grid" id="cardsGrid">
+
+    <!-- ═══ OSAKA ═══ -->
+    <div class="card" id="card-YANGMING-OSAKA" data-port="OSAKA" data-carrier="yangming yang ming" data-carrier-key="YANGMING">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1a3a5c;color:#5bc4f0;">YM</div>
+        <div><div class="carrier-name">YANG MING</div><div class="carrier-sub">大阪港</div></div>
+        <span class="method-badge method-mail">📧 メール</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">宛先</div><div class="card-val">三井倉庫港運 南港C-9</div></div>
+        <div class="card-row"><div class="card-key">メール</div><div class="card-val"><a href="mailto:export_osaka_c9@mitsui-koun.co.jp">export_osaka_c9@mitsui-koun.co.jp</a></div></div>
+        <div class="card-row"><div class="card-key">件名</div><div class="card-val"><code>[ピックアップオーダー送付 1件BKG NO.xxx] 船名 M/D(曜)~ PICK UP希望</code></div></div>
+        <div class="card-row"><div class="card-key">添付</div><div class="card-val">YANGMING_OSAKA.xlsx（B55/B56空白）＋ PDF（搬出先・搬入先記入済）</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-mail" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA/YANGMING_OSAKA.xlsx" target="_blank">📥 Excelフォーム</a>
+        <a class="btn btn-mail" href="mailto:export_osaka_c9@mitsui-koun.co.jp">✉ メール作成</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-INTERASIA-OSAKA" data-port="OSAKA" data-carrier="interasia" data-carrier-key="INTERASIA">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1a3322;color:#4de89a;">IA</div>
+        <div><div class="carrier-name">INTERASIA</div><div class="carrier-sub">大阪港</div></div>
+        <span class="method-badge method-mail">📧 メール</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">宛先</div><div class="card-val">上組 南港C-9</div></div>
+        <div class="card-row"><div class="card-key">メール</div><div class="card-val"><a href="mailto:osaka_empty@kamigumi.co.jp">osaka_empty@kamigumi.co.jp</a></div></div>
+        <div class="card-row"><div class="card-key">件名</div><div class="card-val"><code>IAL-Booking No.xxx 船名 M/D(曜)~ PICK UP 希望</code></div></div>
+        <div class="card-row"><div class="card-key">添付</div><div class="card-val">INTERASIA_OSAKA.xlsx</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-mail" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA/INTERASIA_OSAKA.xlsx" target="_blank">📥 Excelフォーム</a>
+        <a class="btn btn-mail" href="mailto:osaka_empty@kamigumi.co.jp">✉ メール作成</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-HEUNGA-OSAKA" data-port="OSAKA" data-carrier="heung a heung-a heunga" data-carrier-key="HEUNG-A">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">HA</div>
+        <div><div class="carrier-name">HEUNG A / HEUNG-A</div><div class="carrier-sub">大阪港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">辰巳商会 南港CT</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">06-6612-6581</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">HEUNG A OSAKA.pdf（辰巳商会フォーム）</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val">KOREA向け → 仕向地に「(PUSAN T/S)」を付加</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA/HEUNG%20A%20OSAKA.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-KMTC-OSAKA" data-port="OSAKA" data-carrier="kmtc" data-carrier-key="KMTC">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">KM</div>
+        <div><div class="carrier-name">KMTC</div><div class="carrier-sub">大阪港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">辰巳商会 南港CT</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">06-6612-6581</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">KMTC OSAKA PO.pdf（辰巳商会フォーム）</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val">KOREA向け → 仕向地に「(PUSAN T/S)」を付加</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA/KMTC%20OSAKA%20PO.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-SINOKOR-OSAKA" data-port="OSAKA" data-carrier="sinokor" data-carrier-key="SINOKOR">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1f2a3a;color:#60a5fa;">SK</div>
+        <div><div class="carrier-name">SINOKOR</div><div class="carrier-sub">大阪港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">辰巳商会 南港CT</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">06-6612-6581</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">SINOKOR OSAKA PO.pdf（辰巳商会フォーム）</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val">KOREA向け → 仕向地に「(PUSAN T/S)」を付加</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA/SINOKOR%20OSAKA%20PO.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-NAMSUNG-OSAKA" data-port="OSAKA" data-carrier="namsung" data-carrier-key="NAMSUNG">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">NS</div>
+        <div><div class="carrier-name">NAMSUNG</div><div class="carrier-sub">大阪港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">辰巳商会 南港CT</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">06-6612-6581</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">NAMSUNG_OSAKA.pdf（辰巳商会フォーム）</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val">KOREA向け → 仕向地に「(PUSAN T/S)」を付加</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA/NAMSUNG_OSAKA.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-DONGYOUNG-OSAKA" data-port="OSAKA" data-carrier="dong young dongjin dong-young" data-carrier-key="DONG YOUNG">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">DY</div>
+        <div><div class="carrier-name">DONG YOUNG</div><div class="carrier-sub">大阪港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">辰巳商会 南港CT</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">06-6612-6581</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">DONG YOUNG_OSAKA.pdf（辰巳商会フォーム）</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val">FAX返信あり。KOREA向け → 「(PUSAN T/S)」付加</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA/DONG%20YOUNG_OSAKA.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-PANOCEAN-OSAKA" data-port="OSAKA" data-carrier="pan ocean panocean" data-carrier-key="PAN OCEAN">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1a2a1a;color:#86efac;">PO</div>
+        <div><div class="carrier-name">PAN OCEAN</div><div class="carrier-sub">大阪港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">辰巳商会 南港CT</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">06-6612-6581</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">PAN OCEAN OSAKA.pdf（辰巳商会フォーム）</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val">公同運航 → VOYAGEでSINOKOR/NAMSUNG等を確認</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/OSAKA/PAN%20OCEAN%20OSAKA.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <!-- ═══ KOBE ═══ -->
+    <div class="card" id="card-CNC-KOBE" data-port="KOBE" data-carrier="cnc cma cgm" data-carrier-key="CNC">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1a2a3a;color:#93c5fd;">CN</div>
+        <div><div class="carrier-name">CNC / CMA CGM</div><div class="carrier-sub">神戸港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">078-306-3920</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">CNC KOBE_古紙.pdf / CNC KOBE_古着.pdf（品種で選択）</div></div>
+        <div class="card-row"><div class="card-key">⚠ 注意</div><div class="card-val"><span class="tag-warn">品種別2種</span> 古紙・古着でPDFが異なる</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/KOBE/CNC%20KOBE_%E5%8F%A4%E7%B4%99.pdf" target="_blank">📥 古紙フォーム</a>
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/KOBE/CNC%20KOBE_%E5%8F%A4%E7%9D%80.pdf" target="_blank">📥 古着フォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-KMTC-KOBE" data-port="KOBE" data-carrier="kmtc" data-carrier-key="KMTC">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">KM</div>
+        <div><div class="carrier-name">KMTC</div><div class="carrier-sub">神戸港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">NX日本通運</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">078-230-6108</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">KMTC KOBE.pdf（専用フォーム）</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/KOBE/KMTC%20KOBE.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-SINOKOR-KOBE" data-port="KOBE" data-carrier="sinokor" data-carrier-key="SINOKOR">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1f2a3a;color:#60a5fa;">SK</div>
+        <div><div class="carrier-name">SINOKOR</div><div class="carrier-sub">神戸港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">住友倉庫 KICT</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">078-304-1227</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">SINOKOR KOBE.pdf（KICT専用フォーム）</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/KOBE/SINOKOR%20KOBE.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-NAMSUNG-KOBE" data-port="KOBE" data-carrier="namsung" data-carrier-key="NAMSUNG">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">NS</div>
+        <div><div class="carrier-name">NAMSUNG</div><div class="carrier-sub">神戸港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val">（PO EXCEL.xlsx を確認）</div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">NAMSUNG KOBE PO.pdf</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val"><span class="tag-warn">FAX返信あり</span></div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/KOBE/NAMSUNG%20KOBE%20PO.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-DONGYOUNG-KOBE" data-port="KOBE" data-carrier="dong young dongjin dong-young" data-carrier-key="DONG YOUNG">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">DY</div>
+        <div><div class="carrier-name">DONG YOUNG</div><div class="carrier-sub">神戸港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">DONGYOUNG KOBE PO.pdf</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val"><span class="tag-warn">FAX返信あり</span></div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/KOBE/DONGYOUNG%20KOBE%20PO.pdf" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-TSLINE-KOBE" data-port="KOBE" data-carrier="ts line tsline" data-carrier-key="TS LINE">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1a2a3a;color:#93c5fd;">TS</div>
+        <div><div class="carrier-name">TS LINE</div><div class="carrier-sub">神戸港</div></div>
+        <span class="method-badge method-mail">📧 メール</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">TS LINE KOBE PO.xlsx（メール送付）</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val"><span class="tag-warn">FAX返信あり</span></div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-mail" href="https://leenearcorp.sharepoint.com/sites/your-site/Shared%20Documents/PICK%20UP/KOBE/TS%20LINE%20KOBE%20PO.xlsx" target="_blank">📥 Excelフォーム</a>
+      </div>
+    </div>
+
+  </div><!-- /cards-grid -->
+
+  <!-- ── Notes ── -->
+  <div class="section-label">NOTES</div>
+  <div class="section-title">補足・注意事項</div>
+  <div class="section-desc" style="margin-bottom:16px;"></div>
+  <div class="notes-grid">
+    <div class="note-card">
+      <h3><span>📝</span> FAX記入項目</h3>
+      <ul class="note-list">
+        <li>本船名・航海番号</li>
+        <li>CY-CUT日（月・日）</li>
+        <li>BOOKING NO.</li>
+        <li>仕向地 — KOREA向けは「(PUSAN T/S)」自動付加</li>
+        <li>40'HQ 本数</li>
+        <li>搬出希望日（月・日・曜日）</li>
+      </ul>
+    </div>
+    <div class="note-card">
+      <h3><span>⚠️</span> 注意事項</h3>
+      <ul class="note-list">
+        <li>ピックアップ希望日 = CY OPEN前1営業日（土日祝は遡及）</li>
+        <li>CNC神戸は古紙・古着でPDF別。品種確認必須</li>
+        <li>FAX返信あり：DONGJIN(大阪)・NAMSUNG/DONG YOUNG/TS LINE(神戸)</li>
+        <li>YANGMING：Excel（B55/B56空白）とPDF（搬出先記入済）の2ファイル</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── Admin ── -->
+  <div class="section-label" style="margin-top:36px;">ADMIN</div>
+  <div class="section-title">新規船社を追加する手順</div>
+  <div style="margin-bottom:12px;"></div>
+  <div class="collapsible" id="c1">
+    <div class="collapsible-header" onclick="toggleC('c1')">
+      <span style="color:var(--accent);font-weight:800;font-size:11px;">STEP 1</span>
+      <span class="collapsible-title">フォームをOneDriveに配置</span>
+      <span class="collapsible-arrow">›</span>
+    </div>
+    <div class="collapsible-body">
+      <ul class="note-list" style="margin-top:6px;">
+        <li>大阪 → <code>PICK UP/OSAKA/</code> &nbsp;神戸 → <code>PICK UP/KOBE/</code></li>
+        <li>ファイル名に船社名を含める　例：<code>DELTA OSAKA.pdf</code></li>
+      </ul>
+    </div>
+  </div>
+  <div class="collapsible" id="c2">
+    <div class="collapsible-header" onclick="toggleC('c2')">
+      <span style="color:var(--accent);font-weight:800;font-size:11px;">STEP 2</span>
+      <span class="collapsible-title">PO EXCEL.xlsx に1行追加</span>
+      <span class="collapsible-arrow">›</span>
+    </div>
+    <div class="collapsible-body">
+      <table class="ref-table" style="margin-top:10px;">
+        <tr><th>PORT</th><th>船社</th><th>申請方法</th><th>宛先</th><th>宛先名</th></tr>
+        <tr><td>OSAKA</td><td>新規船社名</td><td>FAX or メール</td><td>FAX番号 or メールアドレス</td><td>会社名</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="collapsible" id="c3">
+    <div class="collapsible-header" onclick="toggleC('c3')">
+      <span style="color:var(--accent);font-weight:800;font-size:11px;">STEP 3</span>
+      <span class="collapsible-title">このページのカードをClaudeに追加依頼</span>
+      <span class="collapsible-arrow">›</span>
+    </div>
+    <div class="collapsible-body">
+      <ul class="note-list" style="margin-top:6px;">
+        <li>港（OSAKA/KOBE）・船社名・申請方法（メール/FAX）</li>
+        <li>宛先名・FAX番号またはメールアドレス</li>
+        <li>フォームファイル名（OneDrive内のパス）</li>
+        <li>特記事項（FAX返信の有無など）</li>
+      </ul>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<footer>✦ Powered by <span>LEENAI Automation System</span> &nbsp;|&nbsp; LEENEAR CORPORATION &nbsp;|&nbsp; 社内資料・社外秘</footer>
+
+<script>
+// ════════════════════════════════════════════
+// COMPASS 定数 (CLAUDE-D365_Connect.md 準拠)
+// ════════════════════════════════════════════
+const CLIENT_ID    = 'f071a165-5e9b-44bf-b6a1-baba654524db';
+const TENANT_ID    = 'a56988ff-c2b8-4df8-9727-889ad4205198';
+const DV_URL       = 'https://orgde512c6f.crm7.dynamics.com';
+const DV_API       = DV_URL + '/api/data/v9.2';
+const REDIRECT_URI = location.href.split('?')[0].split('#')[0];
+const SCOPE        = DV_URL + '/user_impersonation openid profile email offline_access';
+
+let S = { accessToken: null, tokenExpiry: 0, userName: '', userEmail: '' };
+
+// ── PKCE helpers ──
+function b64url(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''); }
+async function sha256(s){ return crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); }
+function randomStr(n=64){ const a=new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0,n); }
+
+// ── Login ──
+async function startLogin(){
+  const verifier  = randomStr(64);
+  const challenge = b64url(await sha256(verifier));
+  const state     = randomStr(16);
+  sessionStorage.setItem('pkce_v', verifier);
+  sessionStorage.setItem('pkce_s', state);
+  const p = new URLSearchParams({
+    client_id: CLIENT_ID, response_type: 'code',
+    redirect_uri: REDIRECT_URI, scope: SCOPE,
+    state, code_challenge: challenge, code_challenge_method: 'S256',
+    prompt: 'select_account'
+  });
+  location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${p}`;
+}
+
+// ── Callback ──
+async function handleCallback(){
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  if(!code) return;
+  history.replaceState({}, '', location.pathname);
+  const verifier = sessionStorage.getItem('pkce_v');
+  if(!verifier){ alert('セッション切れ。再ログインしてください。'); return; }
+  showResult('<div class="loading-box"><div class="spinner"></div>認証中...</div>');
+  try {
+    const res = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{
+      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'authorization_code',
+        code, redirect_uri:REDIRECT_URI, code_verifier:verifier, scope:SCOPE })
+    });
+    const data = await res.json();
+    if(!data.access_token) throw new Error(data.error_description||'Token取得失敗');
+    S.accessToken = data.access_token;
+    S.tokenExpiry = Date.now() + (data.expires_in - 60)*1000;
+    if(data.id_token){
+      try{
+        const pl = JSON.parse(atob(data.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+        S.userName  = pl.name  || '';
+        S.userEmail = pl.email || pl.preferred_username || '';
+      }catch(e){}
+    }
+    setLoggedIn();
+    hideResult();
+  } catch(e) {
+    showResult(`<div class="error-box">認証エラー: ${e.message}</div>`);
+  }
+}
+
+function setLoggedIn(){
+  document.getElementById('loginBtn').classList.add('hidden');
+  document.getElementById('loginHint').classList.add('hidden');
+  document.getElementById('userInfo').textContent = '✅ ' + (S.userName || S.userEmail);
+  document.getElementById('userInfo').classList.remove('hidden');
+  document.getElementById('bkgSearchBtn').disabled = false;
+}
+
+// ── dvGet ──
+async function dvGet(path){
+  if(!S.accessToken) throw new Error('ログインしてください');
+  if(Date.now() > S.tokenExpiry) throw new Error('セッション切れ。再ログインしてください');
+  const url = path.startsWith('http') ? path : DV_API + '/' + path;
+  const res = await fetch(url, { headers:{
+    'Authorization': 'Bearer ' + S.accessToken,
+    'OData-MaxVersion':'4.0','OData-Version':'4.0','Accept':'application/json',
+    'Prefer':'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'
+  }});
+  if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e?.error?.message||res.statusText}`); }
+  return res.json();
+}
+
+// ── BKG Search ──
+async function searchBkg(){
+  const bkgNo = document.getElementById('bkgInput').value.trim().toUpperCase();
+  if(!bkgNo){ alert('BKG No を入力してください'); return; }
+  clearMatch();
+  showResult('<div class="loading-box"><div class="spinner"></div>COMPASSを照会中...</div>');
+  try {
+    // ① BKG取得
+    const bkgData = await dvGet(
+      `cr49f_bookings?$filter=cr49f_booking_no eq '${bkgNo}'` +
+      `&$select=cr49f_bookingid,cr49f_booking_no,cr49f_invoice_no,cr49f_main_ship_name,` +
+      `cr49f_cy_open,cr49f_cy_cut,cr49f_etd,crcf9_delivery_location,` +
+      `_cr49f_carrier_id_value,_cr49f_region_japan_id_value,_cr49f_region_id_value`
+    );
+    if(!bkgData.value || bkgData.value.length === 0){
+      showResult(`<div class="error-box">「${bkgNo}」はCOMPASSに見つかりませんでした。BKG Noを確認してください。</div>`);
+      return;
+    }
+    const bkg = bkgData.value[0];
+
+    // ② 船社・POL・POD 並列取得
+    const carrierGuid = bkg['_cr49f_carrier_id_value'];
+    const polGuid     = bkg['_cr49f_region_japan_id_value'];
+    const podGuid     = bkg['_cr49f_region_id_value'];
+    const [carrierName, polName, podName] = await Promise.all([
+      carrierGuid ? dvGet(`crcf9_carriers(${carrierGuid})?$select=crcf9_carrier`).then(d=>d.crcf9_carrier).catch(()=>'(未取得)') : Promise.resolve('(未取得)'),
+      polGuid     ? dvGet(`crcf9_region_japans(${polGuid})?$select=crcf9_pol`).then(d=>d.crcf9_pol).catch(()=>'(未取得)')          : Promise.resolve('(未取得)'),
+      podGuid     ? dvGet(`cr49f_regions(${podGuid})?$select=cr49f_pod`).then(d=>d.cr49f_pod).catch(()=>'(未取得)')                 : Promise.resolve('(未取得)'),
+    ]);
+
+    // ③ ピックアップ希望日計算 (CY OPEN の前1営業日)
+    const cyOpen = bkg.cr49f_cy_open ? bkg.cr49f_cy_open.substring(0,10) : null;
+    const pickupDate = cyOpen ? calcPickupDate(cyOpen) : null;
+
+    // ④ カードマッチング
+    const matchedCards = highlightCards(carrierName, polName);
+
+    // ⑤ 結果表示
+    const fmtDate = d => d ? d.substring(0,10).replace(/-/g,'/') : '—';
+    const pickupStr = pickupDate ? `${pickupDate} (${getDow(pickupDate)})` : '—';
+    let html = `<div class="result-card">
+      <div class="result-title">📋 COMPASS データ — ${bkgNo}</div>
+      <div class="result-grid">
+        <div class="result-item"><div class="result-key">BKG No</div><div class="result-val">${bkg.cr49f_booking_no||'—'}</div></div>
+        <div class="result-item"><div class="result-key">Invoice No</div><div class="result-val">${bkg.cr49f_invoice_no||'—'}</div></div>
+        <div class="result-item"><div class="result-key">本船名</div><div class="result-val">${bkg.cr49f_main_ship_name||'—'}</div></div>
+        <div class="result-item"><div class="result-key">船社</div><div class="result-val highlight-val">${carrierName}</div></div>
+        <div class="result-item"><div class="result-key">POL</div><div class="result-val highlight-val">${polName}</div></div>
+        <div class="result-item"><div class="result-key">POD</div><div class="result-val">${podName}</div></div>
+        <div class="result-item"><div class="result-key">CY OPEN</div><div class="result-val">${fmtDate(bkg.cr49f_cy_open)}</div></div>
+        <div class="result-item"><div class="result-key">CY CUT</div><div class="result-val">${fmtDate(bkg.cr49f_cy_cut)}</div></div>
+        <div class="result-item"><div class="result-key">ETD</div><div class="result-val">${fmtDate(bkg.cr49f_etd)}</div></div>
+        <div class="result-item"><div class="result-key">搬入先CY</div><div class="result-val">${bkg.crcf9_delivery_location||'—'}</div></div>
+      </div>`;
+
+    if(pickupDate){
+      html += `<div class="pickup-date-box">
+        <div>
+          <div class="pd-label">📅 P/Oピックアップ希望日</div>
+          <div class="pd-val">${pickupStr}</div>
+        </div>
+        <div class="pd-note">CY OPEN (${fmtDate(bkg.cr49f_cy_open)}) の前1営業日</div>
+      </div>`;
+    }
+
+    if(matchedCards.length > 0){
+      html += `<button class="goto-btn" onclick="scrollToCard('${matchedCards[0]}')">↓ 申請カードへ移動 (${carrierName} / ${polName})</button>`;
+    } else {
+      html += `<div style="color:var(--warn);font-size:12px;margin-top:4px;">⚠️ ${carrierName} / ${polName} のカードがページ内に見つかりませんでした。PO EXCEL.xlsxを確認してください。</div>`;
+    }
+
+    html += '</div>';
+    showResult(html);
+
+  } catch(e) {
+    showResult(`<div class="error-box">エラー: ${e.message}</div>`);
+  }
+}
+
+// ── カードマッチング ──
+function highlightCards(carrierName, polName){
+  const carrier = (carrierName||'').toLowerCase();
+  const port    = portFromPol(polName);
+  const matched = [];
+  document.querySelectorAll('#cardsGrid .card').forEach(card => {
+    const cData = card.dataset.carrier.toLowerCase();
+    const pData = card.dataset.port;
+    const carrierMatch = cData.split(' ').some(k => k && carrier.includes(k)) ||
+                         carrier.split(' ').some(k => k && cData.includes(k));
+    const portMatch = !port || pData === port;
+    if(carrierMatch && portMatch){
+      card.classList.add('matched');
+      matched.push(card.id);
+    } else {
+      card.classList.add('dimmed');
+    }
+  });
+  document.getElementById('clearMatchBtn').style.display = matched.length ? 'inline-flex' : 'none';
+  return matched;
+}
+
+function portFromPol(polName){
+  const p = (polName||'').toUpperCase();
+  if(p.includes('OSAKA') || p.includes('大阪')) return 'OSAKA';
+  if(p.includes('KOBE')  || p.includes('神戸')) return 'KOBE';
+  return null;
+}
+
+function scrollToCard(id){
+  const el = document.getElementById(id);
+  if(!el) return;
+  // フィルターをALLに戻す
+  filterPort('ALL', document.querySelector('.port-tab'));
+  setTimeout(()=>{
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+  }, 100);
+}
+
+function clearMatch(){
+  document.querySelectorAll('#cardsGrid .card').forEach(c => {
+    c.classList.remove('matched','dimmed');
+  });
+  document.getElementById('clearMatchBtn').style.display = 'none';
+}
+
+// ── ピックアップ希望日 計算 (CY OPEN前1営業日) ──
+function calcPickupDate(cyOpenStr){
+  const d = new Date(cyOpenStr);
+  d.setDate(d.getDate() - 1);
+  // 土日は遡及
+  while(d.getDay()===0 || d.getDay()===6) d.setDate(d.getDate()-1);
+  return d.toISOString().substring(0,10);
+}
+function getDow(dateStr){
+  const dows = ['日','月','火','水','木','金','土'];
+  return dows[new Date(dateStr).getDay()];
+}
+
+// ── UI helpers ──
+function showResult(html){ const el=document.getElementById('bkgResult'); el.style.display='block'; el.innerHTML=html; }
+function hideResult(){ document.getElementById('bkgResult').style.display='none'; }
+
+// ── フィルター ──
+let currentPort = 'ALL';
+function filterPort(port, btn){
+  currentPort = port;
+  document.querySelectorAll('.port-tab').forEach(t=>t.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  applyFilters();
+}
+function filterSearch(){
+  applyFilters();
+}
+function applyFilters(){
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  document.querySelectorAll('#cardsGrid .card').forEach(card=>{
+    const portOk   = currentPort==='ALL' || card.dataset.port===currentPort;
+    const searchOk = !q || card.dataset.carrier.toLowerCase().includes(q);
+    card.classList.toggle('hidden', !(portOk && searchOk));
+  });
+}
+
+// ── Collapsible ──
+function toggleC(id){ document.getElementById(id).classList.toggle('open'); }
+
+// ── On load ──
+window.addEventListener('load', handleCallback);
+</script>
+</body>
+</html>
