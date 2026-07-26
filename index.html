@@ -630,7 +630,8 @@ async function handleCallback(){
 function setLoggedIn(){
   document.getElementById('loginBtn').classList.add('hidden');
   document.getElementById('loginHint').classList.add('hidden');
-  document.getElementById('userInfo').textContent = '✅ ' + (S.userName || S.userEmail);
+  const displayName = S.userEmail ? S.userEmail.split('@')[0] : (S.userName || '');
+  document.getElementById('userInfo').textContent = '✅ ' + displayName;
   document.getElementById('userInfo').classList.remove('hidden');
   document.getElementById('bkgSearchBtn').disabled = false;
 }
