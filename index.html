@@ -570,8 +570,8 @@ const DV_URL       = 'https://orgde512c6f.crm7.dynamics.com';
 const DV_API       = DV_URL + '/api/data/v9.2';
 const REDIRECT_URI = location.href.split('?')[0].split('#')[0];
 const DV_SCOPE     = DV_URL + '/user_impersonation openid profile email offline_access';
-const GRAPH_SCOPE  = 'https://graph.microsoft.com/Files.Read.All offline_access';
-const AUTH_SCOPE   = DV_SCOPE + ' https://graph.microsoft.com/Files.Read.All';
+const GRAPH_SCOPE  = 'https://graph.microsoft.com/Files.ReadWrite.All offline_access';
+const AUTH_SCOPE   = DV_SCOPE + ' https://graph.microsoft.com/Files.ReadWrite.All';
 const GRAPH_API    = 'https://graph.microsoft.com/v1.0';
 
 // フォーム自動取得用（船社別FAX/メールカードと同じ港フォルダ）
