@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>P/O申請ガイド — LEENAI</title>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
   :root {
     --bg:          #0f1117;
@@ -694,9 +695,21 @@ async function findCarrierFiles(portFolderUrl, carrierKey){
   const folderItem = await graphGet(`shares/${shareId}/driveItem`);
   const driveId    = folderItem.parentReference.driveId;
   const itemId     = folderItem.id;
-  const children   = await graphGet(`drives/${driveId}/items/${itemId}/children?$select=name,webUrl`);
+  const children   = await graphGet(`drives/${driveId}/items/${itemId}/children?$select=id,name,webUrl`);
   const key = carrierKey.toUpperCase().replace(/[\s_-]/g,'');
-  return (children.value||[]).filter(f => f.name.toUpperCase().replace(/[\s_-]/g,'').includes(key));
+  return (children.value||[]).filter(f => f.name.toUpperCase().replace(/[\s_-]/g,'').includes(key))
+    .map(f => ({ id:f.id, name:f.name, webUrl:f.webUrl, driveId }));
+}
+
+// 直近のBKG検索結果（PDF自動入力に使用）
+let lastBkgContext = null;
+let _foundFormFiles = [];
+
+// 日付文字列(YYYY-MM-DD) → {month, day}
+function mdParts(dateStr){
+  if(!dateStr) return { month:'', day:'' };
+  const d = new Date(dateStr);
+  return { month:String(d.getMonth()+1), day:String(d.getDate()) };
 }
 
 // BKG検索結果からフォームを自動取得
@@ -707,17 +720,108 @@ async function autoFetchForm(port, carrierKey){
   resultEl.innerHTML = '<div class="loading-box"><div class="spinner"></div>SharePointでフォームを検索中...</div>';
   try {
     const files = await findCarrierFiles(folderUrl, carrierKey);
+    _foundFormFiles = files;
     if(files.length === 0){
       resultEl.innerHTML = `<div class="error-box">「${carrierKey}」に該当するフォームが見つかりませんでした。フォルダを手動で確認してください。</div>`;
-    } else if(files.length === 1){
-      resultEl.innerHTML = `<a class="btn btn-primary" href="${files[0].webUrl}" target="_blank">📥 ${files[0].name} を開く</a>`;
-      window.open(files[0].webUrl, '_blank');
     } else {
-      resultEl.innerHTML = '<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">複数のフォームが見つかりました。該当するものを選択してください：</div>' +
-        files.map(f => `<a class="btn btn-primary" style="margin:2px 4px 2px 0;" href="${f.webUrl}" target="_blank">📥 ${f.name}</a>`).join('');
+      if(files.length === 1) window.open(files[0].webUrl, '_blank');
+      const note = files.length > 1
+        ? '<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">複数のフォームが見つかりました。該当するものを選択してください：</div>'
+        : '';
+      resultEl.innerHTML = note + files.map((f,i) => {
+        const hasFiller = !!PDF_FILLERS[fillerKey(port, carrierKey, f.name)];
+        const fillBtn = hasFiller
+          ? `<button class="btn btn-primary" style="margin:2px 4px 2px 0;" onclick="autoFillAndDownload(${i}, this)">📝 自動入力してダウンロード</button>`
+          : `<span style="font-size:11px;color:var(--text2);margin-right:8px;">（自動入力 未対応）</span>`;
+        return `<div style="margin-bottom:6px;">
+          <a class="btn btn-fax" style="margin:2px 4px 2px 0;" href="${f.webUrl}" target="_blank">📥 ${f.name}</a>
+          ${fillBtn}
+        </div>`;
+      }).join('');
     }
   } catch(e) {
     resultEl.innerHTML = `<div class="error-box">自動取得エラー: ${e.message}</div>`;
+  }
+}
+
+// ════════════════════════════════════════════
+// PDF自動入力（クライアントサイド、pdf-lib使用）
+// ════════════════════════════════════════════
+
+// 船社別フィールドマッピングのキーを決定
+function fillerKey(port, carrierKey, fileName){
+  const upperName = (fileName||'').toUpperCase();
+  if(port === 'KOBE' && carrierKey.toUpperCase() === 'CNC'){
+    if(upperName.includes('古紙')) return 'KOBE_CNC_古紙';
+    if(upperName.includes('古着')) return 'KOBE_CNC_古着';
+  }
+  return `${port}_${carrierKey.toUpperCase()}`;
+}
+
+// CNC神戸（古紙）フォームへの自動入力
+// 座標は sample/CNC KOBE_古紙.pdf を PyMuPDF で解析して算出（PDFネイティブ座標系＝左下原点）
+async function fillCncKobePdf(bytes, ctx){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.load(bytes);
+  const page = pdfDoc.getPages()[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const draw = (text, x, y, size=11) => {
+    if(!text) return;
+    page.drawText(String(text), { x, y, size, font, color: rgb(0.75,0,0) });
+  };
+  const pickup = mdParts(ctx.pickupDate);
+  const cut    = mdParts(ctx.cyCut);
+  draw(ctx.vslName, 232, 624.3, 9.5);
+  draw(ctx.bkgNo,   232, 587.1, 11);
+  draw(ctx.pod,     340, 565.5, 10);
+  draw(pickup.month, 280, 409.1, 11);
+  draw(pickup.day,   365, 409.1, 11);
+  draw(cut.month,    280, 391.1, 11);
+  draw(cut.day,      365, 391.1, 11);
+  return pdfDoc.save();
+}
+
+// キー: fillerKey() の戻り値 → 実装関数
+// 新しい船社/港を対応させる場合は、sample PDFをPyMuPDFで解析して座標を求め、ここに追加する
+const PDF_FILLERS = {
+  'KOBE_CNC_古紙': fillCncKobePdf,
+};
+
+async function downloadFileBytes(driveId, itemId){
+  const token = await getGraphToken();
+  const res = await fetch(`${GRAPH_API}/drives/${driveId}/items/${itemId}/content`, {
+    headers:{ 'Authorization':'Bearer '+token }
+  });
+  if(!res.ok) throw new Error(`Graph API ${res.status}: ファイルのダウンロードに失敗しました`);
+  return res.arrayBuffer();
+}
+
+function triggerDownload(bytes, filename){
+  const blob = new Blob([bytes], { type:'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 5000);
+}
+
+async function autoFillAndDownload(fileIndex, btnEl){
+  const file = _foundFormFiles[fileIndex];
+  if(!file || !lastBkgContext){ alert('先にBKG検索を行ってください。'); return; }
+  const key = fillerKey(lastBkgContext.port, lastBkgContext.carrierKey, file.name);
+  const filler = PDF_FILLERS[key];
+  if(!filler){ alert('この船社・フォームはまだ自動入力に対応していません。'); return; }
+  const origLabel = btnEl.textContent;
+  btnEl.disabled = true; btnEl.textContent = '⏳ 処理中...';
+  try {
+    const bytes  = await downloadFileBytes(file.driveId, file.id);
+    const filled = await filler(bytes, lastBkgContext);
+    triggerDownload(filled, `PO(${lastBkgContext.bkgNo}).pdf`);
+    btnEl.textContent = '✅ ダウンロード完了';
+  } catch(e) {
+    alert('自動入力エラー: ' + e.message);
+    btnEl.textContent = origLabel;
+    btnEl.disabled = false;
   }
 }
 
@@ -790,6 +894,15 @@ async function searchBkg(){
       const firstCard   = document.getElementById(matchedCards[0]);
       const matchedPort = firstCard.dataset.port;
       const matchedKey  = firstCard.dataset.carrierKey;
+      lastBkgContext = {
+        bkgNo:      bkg.cr49f_booking_no || '',
+        vslName:    bkg.cr49f_main_ship_name || '',
+        pod:        podName,
+        pickupDate: pickupDate,
+        cyCut:      bkg.cr49f_cy_cut ? bkg.cr49f_cy_cut.substring(0,10) : null,
+        port:       matchedPort,
+        carrierKey: matchedKey
+      };
       html += `<button class="goto-btn" onclick="scrollToCard('${matchedCards[0]}')">↓ 申請カードへ移動 (${carrierName} / ${polName})</button>
       <button class="goto-btn" style="background:var(--accent2);margin-left:8px;" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
       <div id="autoFetchResult" style="margin-top:10px;"></div>`;
