@@ -170,6 +170,14 @@
   .mf-step.done{background:#0a1f12;border-color:#1c5c37;color:#4ade80;}
   .mf-arrow{color:var(--text3);font-size:12px;}
 
+  /* ── 送信前 確認・修正フォーム ── */
+  .edit-box{background:#141a2e;border:1px solid var(--accent);border-radius:8px;padding:14px 16px;margin-bottom:16px;}
+  .edit-box-title{font-size:12px;color:var(--accent);font-weight:700;margin-bottom:10px;}
+  .edit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
+  .edit-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text2);font-weight:600;}
+  .edit-grid input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;outline:none;font-family:var(--font-main);}
+  .edit-grid input:focus{border-color:var(--accent);}
+
   /* ── 送信先 案内ボックス ── */
   .contact-box{border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
   .contact-box.mail{background:#0c1a2e;border:1px solid #2563eb;}
@@ -767,6 +775,19 @@ function mdParts(dateStr){
   return { month:String(d.getMonth()+1), day:String(d.getDate()) };
 }
 
+// 検索結果の「送信前に確認・修正」欄からの入力をlastBkgContextへ反映
+function updateBkgField(key, value){
+  if(lastBkgContext) lastBkgContext[key] = value;
+}
+function updatePickupDate(value){
+  if(!lastBkgContext) return;
+  lastBkgContext.pickupDate = value;
+  const disp = document.getElementById('pdValDisplay');
+  const note = document.getElementById('pdNoteDisplay');
+  if(disp) disp.textContent = value ? `${value} (${getDow(value)})` : '—';
+  if(note) note.textContent = '※ 手動で修正されました';
+}
+
 // BKG検索結果からフォームを自動取得
 async function autoFetchForm(port, carrierKey){
   const resultEl = document.getElementById('autoFetchResult');
@@ -823,13 +844,20 @@ async function fillCncKobePdf(bytes, ctx){
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const draw = (text, x, y, size=11) => {
     if(!text) return;
-    page.drawText(String(text), { x, y, size, font, color: rgb(0.75,0,0) });
+    try {
+      // 標準フォント(WinAnsi)は日本語等を描画できないため、非対応文字は"?"に置換する
+      const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
+      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+    } catch(e) {
+      console.warn('PDF記入をスキップ:', text, e.message);
+    }
   };
   const pickup = mdParts(ctx.pickupDate);
   const cut    = mdParts(ctx.cyCut);
   draw(ctx.vslName, 232, 624.3, 9.5);
   draw(ctx.bkgNo,   232, 587.1, 11);
   draw(ctx.pod,     340, 565.5, 10);
+  if(ctx.containerQty) draw('Qty: ' + ctx.containerQty, 345, 519.1, 9);
   draw(pickup.month, 280, 409.1, 11);
   draw(pickup.day,   365, 409.1, 11);
   draw(cut.month,    280, 391.1, 11);
@@ -941,9 +969,9 @@ async function searchBkg(){
       html += `<div class="pickup-date-box">
         <div>
           <div class="pd-label">📅 P/Oピックアップ希望日</div>
-          <div class="pd-val">${pickupStr}</div>
+          <div class="pd-val" id="pdValDisplay">${pickupStr}</div>
         </div>
-        <div class="pd-note">CY OPEN (${fmtDate(bkg.cr49f_cy_open)}) の前1営業日</div>
+        <div class="pd-note" id="pdNoteDisplay">CY OPEN (${fmtDate(bkg.cr49f_cy_open)}) の前1営業日</div>
       </div>`;
     }
 
@@ -952,15 +980,30 @@ async function searchBkg(){
       const matchedPort = firstCard.dataset.port;
       const matchedKey  = firstCard.dataset.carrierKey;
       lastBkgContext = {
-        bkgNo:      bkg.cr49f_booking_no || '',
-        vslName:    bkg.cr49f_main_ship_name || '',
-        pod:        podName,
-        pickupDate: pickupDate,
-        cyCut:      bkg.cr49f_cy_cut ? bkg.cr49f_cy_cut.substring(0,10) : null,
-        port:       matchedPort,
-        carrierKey: matchedKey
+        bkgNo:        bkg.cr49f_booking_no || '',
+        vslName:      bkg.cr49f_main_ship_name || '',
+        pod:          podName,
+        pickupDate:   pickupDate,
+        cyCut:        bkg.cr49f_cy_cut ? bkg.cr49f_cy_cut.substring(0,10) : null,
+        containerQty: '',
+        port:         matchedPort,
+        carrierKey:   matchedKey
       };
       html += contactBoxHtml(firstCard);
+      html += `<div class="edit-box">
+        <div class="edit-box-title">✏️ 送信前に確認・修正（COMPASSにない情報や誤りはここで直接入力してください）</div>
+        <div class="edit-grid">
+          <label>仕向地（POD）
+            <input type="text" id="editPod" value="${podName === '(未取得)' ? '' : podName}" oninput="updateBkgField('pod', this.value)">
+          </label>
+          <label>ピックアップ希望日
+            <input type="date" id="editPickupDate" value="${pickupDate || ''}" onchange="updatePickupDate(this.value)">
+          </label>
+          <label>コンテナ本数・種類
+            <input type="text" id="editContainerQty" placeholder="例：40'DRY(9'6") x 2" oninput="updateBkgField('containerQty', this.value)">
+          </label>
+        </div>
+      </div>`;
       html += `<button class="goto-btn" style="background:var(--accent2);" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
       <button class="goto-btn" style="background:var(--surface2);color:var(--text2);margin-left:8px;" onclick="scrollToCard('${matchedCards[0]}')">🔎 詳細カードを見る</button>
       <div id="autoFetchResult" style="margin-top:10px;"></div>`;
