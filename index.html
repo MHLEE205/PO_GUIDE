@@ -32,8 +32,8 @@
   .header-title{font-size:15px;font-weight:600;color:var(--text);}
   .header-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
   .header-badge{background:#1a2540;border:1px solid var(--border);color:var(--text2);font-size:11px;padding:3px 10px;border-radius:20px;}
-  #loginBtn{padding:6px 16px;border-radius:6px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;transition:.15s;}
-  #loginBtn:hover{background:var(--accent);color:#fff;}
+  #loginBtn{padding:8px 20px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;}
+  #loginBtn:hover{opacity:.85;}
   #userInfo{font-size:12px;color:var(--accent2);}
 
   /* ── Container ── */
@@ -153,6 +153,33 @@
   .collapsible-body{display:none;padding:0 16px 16px;}
   .collapsible.open .collapsible-body{display:block;}
 
+  /* ── 詳細情報セクション（トップレベル、通常は折りたたみ） ── */
+  #detailsSection{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:24px;overflow:hidden;}
+  #detailsSection .collapsible-header{padding:16px 20px;}
+  #detailsSection .collapsible-title{font-size:14px;}
+  #detailsSection .collapsible-body{padding:4px 20px 24px;}
+
+  /* ── BKGパネル ロック状態 ── */
+  #bkgPanel.locked .bkg-search-row{opacity:.4;pointer-events:none;}
+  #loginHint{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--warn);font-weight:600;}
+
+  /* ── ミニフロー（ステップ案内） ── */
+  .mini-flow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+  .mf-step{padding:4px 11px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);font-size:11px;color:var(--text3);font-weight:600;}
+  .mf-step.active{background:#162038;border-color:var(--accent);color:var(--text);}
+  .mf-step.done{background:#0a1f12;border-color:#1c5c37;color:#4ade80;}
+  .mf-arrow{color:var(--text3);font-size:12px;}
+
+  /* ── 送信先 案内ボックス ── */
+  .contact-box{border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .contact-box.mail{background:#0c1a2e;border:1px solid #2563eb;}
+  .contact-box.fax{background:#1a0f2e;border:1px solid var(--fax-border);}
+  .contact-box .cb-label{font-size:11px;font-weight:700;letter-spacing:1px;}
+  .contact-box.mail .cb-label{color:#60a5fa;}
+  .contact-box.fax .cb-label{color:#b08af0;}
+  .contact-box .cb-val{font-size:16px;font-weight:800;color:var(--text);}
+  .contact-box .cb-val a{color:inherit;text-decoration:underline;}
+
   /* ── Table ── */
   .ref-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
   .ref-table th{background:var(--surface);color:var(--text2);padding:7px 10px;text-align:left;border:1px solid var(--border);font-weight:600;}
@@ -181,32 +208,42 @@
 <!-- ══ MAIN ══ -->
 <div class="container">
 
-  <!-- ── BKG検索パネル ── -->
-  <div id="bkgPanel">
+  <!-- ── BKG検索パネル（メインのシンプルなフォーム） ── -->
+  <div id="bkgPanel" class="locked">
     <div class="panel-label">🔍 COMPASS ブッキング検索</div>
     <div class="bkg-search-row">
       <input id="bkgInput" type="text" placeholder="BKG No を入力  例：SNKO040260600193"
-             onkeydown="if(event.key==='Enter')searchBkg()">
+             onkeydown="if(event.key==='Enter')searchBkg()" disabled>
       <button id="bkgSearchBtn" onclick="searchBkg()" disabled>検索</button>
-      <span id="loginHint" style="font-size:12px;color:var(--text3);">← まずログインしてください</span>
+      <span id="loginHint">🔒 まずログインしてください</span>
     </div>
     <div id="bkgResult"></div>
+    <div class="mini-flow" id="miniFlow">
+      <span class="mf-step active" id="mfStep1">① ログイン</span>
+      <span class="mf-arrow">→</span>
+      <span class="mf-step" id="mfStep2">② BKG No 検索</span>
+      <span class="mf-arrow">→</span>
+      <span class="mf-step" id="mfStep3">③ フォーム取得</span>
+      <span class="mf-arrow">→</span>
+      <span class="mf-step" id="mfStep4">④ 自動入力してDL</span>
+      <span class="mf-arrow">→</span>
+      <span class="mf-step" id="mfStep5">⑤ メール送信 or FAX</span>
+    </div>
   </div>
+
+  <!-- ── 詳細情報（通常は折りたたみ／船社一覧・手動確認用） ── -->
+  <div id="detailsSection" class="collapsible">
+    <div class="collapsible-header" onclick="toggleC('detailsSection')">
+      <span>📋</span>
+      <span class="collapsible-title">詳細情報・船社一覧を見る（通常は不要です）</span>
+      <span class="collapsible-arrow">›</span>
+    </div>
+    <div class="collapsible-body">
 
   <!-- ── 概要 ── -->
   <div class="section-label">OVERVIEW</div>
   <div class="section-title">P/O 申請とは</div>
   <div class="section-desc">輸出ブッキング後、船社または港湾ターミナルへ空コンテナの引き取り予約を行う業務です。申請方法は船社・港によって <strong>メール</strong> または <strong>FAX</strong> の2種類あります。</div>
-
-  <div class="flow">
-    <div class="flow-step hl"><div class="flow-box"><span class="step-num">STEP 1</span><div class="step-text">BKG No 検索</div><div class="step-sub">上の検索欄で入力</div></div></div>
-    <div class="flow-arrow">›</div>
-    <div class="flow-step"><div class="flow-box"><span class="step-num">STEP 2</span><div class="step-text">申請方法を確認</div><div class="step-sub">自動でカードへ移動</div></div></div>
-    <div class="flow-arrow">›</div>
-    <div class="flow-step"><div class="flow-box"><span class="step-num">STEP 3</span><div class="step-text">フォーム取得</div><div class="step-sub">OneDriveからDL</div></div></div>
-    <div class="flow-arrow">›</div>
-    <div class="flow-step"><div class="flow-box"><span class="step-num">STEP 4</span><div class="step-text">送信</div><div class="step-sub">メール or FAX</div></div></div>
-  </div>
 
   <div class="info-box">
     <strong>📅 ピックアップ希望日：</strong> CY OPEN日の <strong>1営業日前</strong>（土日・祝日は自動遡及）<br>
@@ -557,6 +594,9 @@
     </div>
   </div>
 
+    </div><!-- /collapsible-body -->
+  </div><!-- /detailsSection -->
+
 </div><!-- /container -->
 
 <footer>✦ Powered by <span>LEENAI Automation System</span> &nbsp;|&nbsp; LEENEAR CORPORATION &nbsp;|&nbsp; 社内資料・社外秘</footer>
@@ -642,7 +682,22 @@ function setLoggedIn(){
   const displayName = S.userEmail ? S.userEmail.split('@')[0] : (S.userName || '');
   document.getElementById('userInfo').textContent = '✅ ' + displayName;
   document.getElementById('userInfo').classList.remove('hidden');
+  document.getElementById('bkgPanel').classList.remove('locked');
+  document.getElementById('bkgInput').disabled = false;
   document.getElementById('bkgSearchBtn').disabled = false;
+  document.getElementById('bkgInput').focus();
+  setMiniFlow(2);
+}
+
+// ステップ案内（① ログイン → ⑤ 送信）の進捗表示を更新
+function setMiniFlow(n){
+  for(let i=1;i<=5;i++){
+    const el = document.getElementById('mfStep'+i);
+    if(!el) continue;
+    el.classList.remove('active','done');
+    if(i<n) el.classList.add('done');
+    else if(i===n) el.classList.add('active');
+  }
 }
 
 // ── dvGet ──
@@ -738,6 +793,7 @@ async function autoFetchForm(port, carrierKey){
           ${fillBtn}
         </div>`;
       }).join('');
+      setMiniFlow(4);
     }
   } catch(e) {
     resultEl.innerHTML = `<div class="error-box">自動取得エラー: ${e.message}</div>`;
@@ -818,6 +874,7 @@ async function autoFillAndDownload(fileIndex, btnEl){
     const filled = await filler(bytes, lastBkgContext);
     triggerDownload(filled, `PO(${lastBkgContext.bkgNo}).pdf`);
     btnEl.textContent = '✅ ダウンロード完了';
+    setMiniFlow(5);
   } catch(e) {
     alert('自動入力エラー: ' + e.message);
     btnEl.textContent = origLabel;
@@ -903,9 +960,11 @@ async function searchBkg(){
         port:       matchedPort,
         carrierKey: matchedKey
       };
-      html += `<button class="goto-btn" onclick="scrollToCard('${matchedCards[0]}')">↓ 申請カードへ移動 (${carrierName} / ${polName})</button>
-      <button class="goto-btn" style="background:var(--accent2);margin-left:8px;" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
+      html += contactBoxHtml(firstCard);
+      html += `<button class="goto-btn" style="background:var(--accent2);" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
+      <button class="goto-btn" style="background:var(--surface2);color:var(--text2);margin-left:8px;" onclick="scrollToCard('${matchedCards[0]}')">🔎 詳細カードを見る</button>
       <div id="autoFetchResult" style="margin-top:10px;"></div>`;
+      setMiniFlow(3);
     } else {
       html += `<div style="color:var(--warn);font-size:12px;margin-top:4px;">⚠️ ${carrierName} / ${polName} のカードがページ内に見つかりませんでした。PO EXCEL.xlsxを確認してください。</div>`;
     }
@@ -916,6 +975,28 @@ async function searchBkg(){
   } catch(e) {
     showResult(`<div class="error-box">エラー: ${e.message}</div>`);
   }
+}
+
+// マッチしたカードから送信方法（メール／FAX）と宛先を抜き出して案内ボックスを作る
+function contactBoxHtml(cardEl){
+  const isMail = !!cardEl.querySelector('.method-badge.method-mail');
+  const mailLink = cardEl.querySelector('a[href^="mailto:"]');
+  let faxNo = null;
+  cardEl.querySelectorAll('.card-row').forEach(row=>{
+    const k = row.querySelector('.card-key');
+    if(k && k.textContent.includes('FAX No.')) faxNo = row.querySelector('.card-val').textContent.trim();
+  });
+  if(isMail && mailLink){
+    return `<div class="contact-box mail">
+      <div><div class="cb-label">📧 送信方法：メール</div><div class="cb-val"><a href="${mailLink.getAttribute('href')}">${mailLink.textContent.trim()}</a></div></div>
+    </div>`;
+  }
+  if(faxNo){
+    return `<div class="contact-box fax">
+      <div><div class="cb-label">📠 送信方法：FAX</div><div class="cb-val">${faxNo}</div></div>
+    </div>`;
+  }
+  return `<div class="contact-box fax"><div><div class="cb-label">ℹ️ 送信先</div><div class="cb-val" style="font-size:13px;">下の「詳細カードを見る」またはPO EXCEL.xlsxで確認してください</div></div></div>`;
 }
 
 // ── カードマッチング ──
@@ -950,7 +1031,8 @@ function portFromPol(polName){
 function scrollToCard(id){
   const el = document.getElementById(id);
   if(!el) return;
-  // フィルターをALLに戻す
+  // 詳細情報セクションを開き、フィルターをALLに戻す
+  document.getElementById('detailsSection').classList.add('open');
   filterPort('ALL', document.querySelector('.port-tab'));
   setTimeout(()=>{
     el.scrollIntoView({behavior:'smooth', block:'center'});
