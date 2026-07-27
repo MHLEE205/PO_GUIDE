@@ -569,9 +569,16 @@ const TENANT_ID    = 'a56988ff-c2b8-4df8-9727-889ad4205198';
 const DV_URL       = 'https://orgde512c6f.crm7.dynamics.com';
 const DV_API       = DV_URL + '/api/data/v9.2';
 const REDIRECT_URI = location.href.split('?')[0].split('#')[0];
-const SCOPE        = DV_URL + '/user_impersonation openid profile email offline_access';
+const DV_SCOPE     = DV_URL + '/user_impersonation openid profile email offline_access';
+const GRAPH_SCOPE  = 'https://graph.microsoft.com/Files.Read.All offline_access';
+const AUTH_SCOPE   = DV_SCOPE + ' https://graph.microsoft.com/Files.Read.All';
+const GRAPH_API    = 'https://graph.microsoft.com/v1.0';
 
-let S = { accessToken: null, tokenExpiry: 0, userName: '', userEmail: '' };
+// フォーム自動取得用（船社別FAX/メールカードと同じ港フォルダ）
+const OSAKA_FOLDER_URL = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX';
+const KOBE_FOLDER_URL  = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL';
+
+let S = { accessToken: null, tokenExpiry: 0, refreshToken: null, graphToken: null, graphTokenExpiry: 0, userName: '', userEmail: '' };
 
 // ── PKCE helpers ──
 function b64url(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''); }
@@ -587,7 +594,7 @@ async function startLogin(){
   sessionStorage.setItem('pkce_s', state);
   const p = new URLSearchParams({
     client_id: CLIENT_ID, response_type: 'code',
-    redirect_uri: REDIRECT_URI, scope: SCOPE,
+    redirect_uri: REDIRECT_URI, scope: AUTH_SCOPE,
     state, code_challenge: challenge, code_challenge_method: 'S256',
     prompt: 'select_account'
   });
@@ -607,12 +614,13 @@ async function handleCallback(){
     const res = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'authorization_code',
-        code, redirect_uri:REDIRECT_URI, code_verifier:verifier, scope:SCOPE })
+        code, redirect_uri:REDIRECT_URI, code_verifier:verifier, scope:DV_SCOPE })
     });
     const data = await res.json();
     if(!data.access_token) throw new Error(data.error_description||'Token取得失敗');
     S.accessToken = data.access_token;
     S.tokenExpiry = Date.now() + (data.expires_in - 60)*1000;
+    S.refreshToken = data.refresh_token || null;
     if(data.id_token){
       try{
         const pl = JSON.parse(atob(data.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
@@ -648,6 +656,69 @@ async function dvGet(path){
   }});
   if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(`API ${res.status}: ${e?.error?.message||res.statusText}`); }
   return res.json();
+}
+
+// ── Graph トークン取得（refresh_tokenでリソース切替） ──
+async function getGraphToken(){
+  if(S.graphToken && Date.now() < S.graphTokenExpiry) return S.graphToken;
+  if(!S.refreshToken) throw new Error('SharePointアクセスには再ログインが必要です');
+  const res = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'refresh_token',
+      refresh_token:S.refreshToken, scope:GRAPH_SCOPE })
+  });
+  const data = await res.json();
+  if(!data.access_token) throw new Error(data.error_description || 'SharePointアクセス権限が未許可です（Azure ADのAPI Permissionsを確認してください）');
+  S.graphToken = data.access_token;
+  S.graphTokenExpiry = Date.now() + (data.expires_in - 60)*1000;
+  if(data.refresh_token) S.refreshToken = data.refresh_token;
+  return S.graphToken;
+}
+
+async function graphGet(path){
+  const token = await getGraphToken();
+  const url = path.startsWith('http') ? path : GRAPH_API + '/' + path;
+  const res = await fetch(url, { headers:{ 'Authorization':'Bearer '+token, 'Accept':'application/json' } });
+  if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(`Graph API ${res.status}: ${e?.error?.message||res.statusText}`); }
+  return res.json();
+}
+
+// SharePoint共有リンク → Graph Shares API 用エンコードID (u!base64url)
+function encodeSharingUrl(url){
+  return 'u!' + btoa(url).replace(/=+$/,'').replace(/\//g,'_').replace(/\+/g,'-');
+}
+
+// 港フォルダ内を船社キーで検索し、該当ファイル一覧を返す
+async function findCarrierFiles(portFolderUrl, carrierKey){
+  const shareId    = encodeSharingUrl(portFolderUrl);
+  const folderItem = await graphGet(`shares/${shareId}/driveItem`);
+  const driveId    = folderItem.parentReference.driveId;
+  const itemId     = folderItem.id;
+  const children   = await graphGet(`drives/${driveId}/items/${itemId}/children?$select=name,webUrl`);
+  const key = carrierKey.toUpperCase().replace(/[\s_-]/g,'');
+  return (children.value||[]).filter(f => f.name.toUpperCase().replace(/[\s_-]/g,'').includes(key));
+}
+
+// BKG検索結果からフォームを自動取得
+async function autoFetchForm(port, carrierKey){
+  const resultEl = document.getElementById('autoFetchResult');
+  const folderUrl = port === 'OSAKA' ? OSAKA_FOLDER_URL : port === 'KOBE' ? KOBE_FOLDER_URL : null;
+  if(!folderUrl){ resultEl.innerHTML = '<div class="error-box">この港には自動取得用フォルダが設定されていません。</div>'; return; }
+  resultEl.innerHTML = '<div class="loading-box"><div class="spinner"></div>SharePointでフォームを検索中...</div>';
+  try {
+    const files = await findCarrierFiles(folderUrl, carrierKey);
+    if(files.length === 0){
+      resultEl.innerHTML = `<div class="error-box">「${carrierKey}」に該当するフォームが見つかりませんでした。フォルダを手動で確認してください。</div>`;
+    } else if(files.length === 1){
+      resultEl.innerHTML = `<a class="btn btn-primary" href="${files[0].webUrl}" target="_blank">📥 ${files[0].name} を開く</a>`;
+      window.open(files[0].webUrl, '_blank');
+    } else {
+      resultEl.innerHTML = '<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">複数のフォームが見つかりました。該当するものを選択してください：</div>' +
+        files.map(f => `<a class="btn btn-primary" style="margin:2px 4px 2px 0;" href="${f.webUrl}" target="_blank">📥 ${f.name}</a>`).join('');
+    }
+  } catch(e) {
+    resultEl.innerHTML = `<div class="error-box">自動取得エラー: ${e.message}</div>`;
+  }
 }
 
 // ── BKG Search ──
@@ -716,7 +787,12 @@ async function searchBkg(){
     }
 
     if(matchedCards.length > 0){
-      html += `<button class="goto-btn" onclick="scrollToCard('${matchedCards[0]}')">↓ 申請カードへ移動 (${carrierName} / ${polName})</button>`;
+      const firstCard   = document.getElementById(matchedCards[0]);
+      const matchedPort = firstCard.dataset.port;
+      const matchedKey  = firstCard.dataset.carrierKey;
+      html += `<button class="goto-btn" onclick="scrollToCard('${matchedCards[0]}')">↓ 申請カードへ移動 (${carrierName} / ${polName})</button>
+      <button class="goto-btn" style="background:var(--accent2);margin-left:8px;" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
+      <div id="autoFetchResult" style="margin-top:10px;"></div>`;
     } else {
       html += `<div style="color:var(--warn);font-size:12px;margin-top:4px;">⚠️ ${carrierName} / ${polName} のカードがページ内に見つかりませんでした。PO EXCEL.xlsxを確認してください。</div>`;
     }
