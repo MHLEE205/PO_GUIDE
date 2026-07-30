@@ -854,11 +854,11 @@ async function fillCncKobePdf(bytes, ctx){
   };
   const pickup = mdParts(ctx.pickupDate);
   const cut    = mdParts(ctx.cyCut);
-  draw(ctx.vslName, 232, 624.3, 9.5);
-  draw(ctx.bkgNo,   232, 587.1, 11);
-  draw(ctx.pod,     340, 565.5, 10);
+  draw(ctx.vslName, 232, 624, 11);
+  draw(ctx.bkgNo,   232, 588, 11);
+  draw(ctx.pod,     340, 565.5, 11);
   // コンテナ本数（40'DRY(9'6")行の空欄、数字のみ）
-  if(ctx.containerQty) draw(ctx.containerQty, 445, 482.9, 10);
+  if(ctx.containerQty) draw(ctx.containerQty, 445, 483, 11);
   draw(pickup.month, 280, 409.1, 11);
   draw(pickup.day,   365, 409.1, 11);
   draw(cut.month,    280, 391.1, 11);
