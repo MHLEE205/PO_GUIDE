@@ -32,7 +32,7 @@ PO_GUIDE/
 3. **ピックアップ希望日自動計算**: CY OPEN前1営業日（土日祝遡及）
 4. **港フィルター**: 大阪 / 神戸 / すべて
 5. **船社名検索**: キーワードでカード絞り込み
-6. **OneDriveリンク**: 各船社フォームへ直リンク
+6. **SharePointリンク**: 各船社フォームへ直リンク
 
 ## 対応船社一覧
 ### 大阪港 (OSAKA)
@@ -57,14 +57,14 @@ PO_GUIDE/
 | DONG YOUNG | FAX | PO EXCEL.xlsx参照 |
 | TS LINE | メール | PO EXCEL.xlsx参照 |
 
-## OneDriveフォルダ構成
+## SharePointフォルダ構成
 ```
 PICK UP/
 ├── OSAKA/    # 大阪港フォームPDF・Excel
 ├── KOBE/     # 神戸港フォームPDF・Excel
 └── PO EXCEL.xlsx  # 船社設定マスタ
 ```
-※ OneDriveリンクは index.html 内の各カードのhrefを直接編集
+※ SharePointリンクは index.html 内の各カードのhrefを直接編集
 
 ## コード修正時の注意事項
 - `REDIRECT_URI` は `https://mhlee205.github.io/PO_GUIDE/` 固定
