@@ -775,6 +775,14 @@ function mdParts(dateStr){
   return { month:String(d.getMonth()+1), day:String(d.getDate()) };
 }
 
+// COMPASSの本船名フィールド（例："WECAN 2624W"）から本船名と航海番号を分離
+function parseVslVoy(raw){
+  const s = String(raw||'').trim();
+  const m = s.match(/^(.*\S)[\s\/]+(\d{3,5}[A-Za-z]{0,2})$/);
+  if(m) return { vslName: m[1].trim(), voyNo: m[2].trim() };
+  return { vslName: s, voyNo: '' };
+}
+
 // 検索結果の「送信前に確認・修正」欄からの入力をlastBkgContextへ反映
 function updateBkgField(key, value){
   if(lastBkgContext) lastBkgContext[key] = value;
@@ -854,7 +862,7 @@ async function fillCncKobePdf(bytes, ctx){
   };
   const pickup = mdParts(ctx.pickupDate);
   const cut    = mdParts(ctx.cyCut);
-  draw(ctx.vslName, 232, 624, 11);
+  draw(ctx.voyNo ? `${ctx.vslName}  VOY ${ctx.voyNo}` : ctx.vslName, 232, 624, 11); // 本船名／VOY NO.欄（1セル共用）
   draw(ctx.bkgNo,   232, 588, 11);
   draw(ctx.pod,     340, 565.5, 11);
   // コンテナ本数（40'DRY(9'6")行の空欄、数字のみ）
@@ -885,6 +893,7 @@ async function fillTatsumiOsakaPdf(bytes, ctx){
   const pickup = mdParts(ctx.pickupDate);
   const cut    = mdParts(ctx.cyCut);
   draw(ctx.vslName, 185, 584.5, 11);
+  draw(ctx.voyNo,   185, 565.2, 11);
   draw(ctx.bkgNo,   185, 467.4, 11);
   draw(ctx.pod,     185, 427.7, 11);
   // コンテナ本数（TYPE/SIZE表の「ドライ9'6(DH)」行・40'列の空欄）
@@ -914,6 +923,7 @@ async function fillKmtcKobePdf(bytes, ctx){
   };
   const pickup = mdParts(ctx.pickupDate);
   draw(ctx.vslName, 183, 628.9, 11);
+  draw(ctx.voyNo,   378, 628.9, 11);
   draw(ctx.bkgNo,   183, 609.1, 11);
   draw(ctx.pod,     368, 590.7, 11); // 最終仕向地欄
   // コンテナ本数（TYPE/SIZE表の「ドライ9'6(DH)」行・40'(本数)列の空欄）
@@ -940,7 +950,7 @@ async function fillSinokorKobePdf(bytes, ctx){
     }
   };
   const pickup = mdParts(ctx.pickupDate);
-  draw(ctx.vslName, 60,  646.9, 11); // 本船名/VOY欄
+  draw(ctx.voyNo ? `${ctx.vslName}  VOY ${ctx.voyNo}` : ctx.vslName, 60, 646.9, 11); // 本船名/VOY欄（1セル共用）
   draw(ctx.pod,     320, 646.9, 11); // 陸揚港/最終仕向地欄
   draw(ctx.bkgNo,   320, 591.9, 11);
   if(pickup.month || pickup.day) draw(`${pickup.month}/${pickup.day}`, 68, 333.9, 11); // 搬出日欄
@@ -1072,9 +1082,11 @@ async function searchBkg(){
       const firstCard   = document.getElementById(matchedCards[0]);
       const matchedPort = firstCard.dataset.port;
       const matchedKey  = firstCard.dataset.carrierKey;
+      const { vslName, voyNo } = parseVslVoy(bkg.cr49f_main_ship_name);
       lastBkgContext = {
         bkgNo:        bkg.cr49f_booking_no || '',
-        vslName:      bkg.cr49f_main_ship_name || '',
+        vslName:      vslName,
+        voyNo:        voyNo,
         pod:          podName,
         pickupDate:   pickupDate,
         cyCut:        bkg.cr49f_cy_cut ? bkg.cr49f_cy_cut.substring(0,10) : null,
@@ -1086,6 +1098,12 @@ async function searchBkg(){
       html += `<div class="edit-box">
         <div class="edit-box-title">✏️ 送信前に確認・修正（COMPASSにない情報や誤りはここで直接入力してください）</div>
         <div class="edit-grid">
+          <label>本船名
+            <input type="text" id="editVslName" value="${vslName}" oninput="updateBkgField('vslName', this.value)">
+          </label>
+          <label>航海番号
+            <input type="text" id="editVoyNo" value="${voyNo}" oninput="updateBkgField('voyNo', this.value)">
+          </label>
           <label>仕向地（POD）
             <input type="text" id="editPod" value="${podName === '(未取得)' ? '' : podName}" oninput="updateBkgField('pod', this.value)">
           </label>
