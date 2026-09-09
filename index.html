@@ -775,6 +775,14 @@ function mdParts(dateStr){
   return { month:String(d.getMonth()+1), day:String(d.getDate()) };
 }
 
+// 釜山T/S経由の韓国向け主要港は仕向地に「, KOREA(PUSAN T/S)」を自動付加
+const PUSAN_TS_CITIES = ['KWANGYANG','PUSAN','INCHEON'];
+function applyPusanTs(pod){
+  const p = (pod||'').trim();
+  if(PUSAN_TS_CITIES.includes(p.toUpperCase())) return `${p}, KOREA(PUSAN T/S)`;
+  return p;
+}
+
 // COMPASSの本船名フィールド（例："WECAN 2624W"）から本船名と航海番号を分離
 function parseVslVoy(raw){
   const s = String(raw||'').trim();
@@ -1037,11 +1045,12 @@ async function searchBkg(){
     const carrierGuid = bkg['_cr49f_carrier_id_value'];
     const polGuid     = bkg['_cr49f_region_japan_id_value'];
     const podGuid     = bkg['_cr49f_region_id_value'];
-    const [carrierName, polName, podName] = await Promise.all([
+    const [carrierName, polName, podNameRaw] = await Promise.all([
       carrierGuid ? dvGet(`crcf9_carriers(${carrierGuid})?$select=crcf9_carrier`).then(d=>d.crcf9_carrier).catch(()=>'(未取得)') : Promise.resolve('(未取得)'),
       polGuid     ? dvGet(`crcf9_region_japans(${polGuid})?$select=crcf9_pol`).then(d=>d.crcf9_pol).catch(()=>'(未取得)')          : Promise.resolve('(未取得)'),
       podGuid     ? dvGet(`cr49f_regions(${podGuid})?$select=cr49f_pod`).then(d=>d.cr49f_pod).catch(()=>'(未取得)')                 : Promise.resolve('(未取得)'),
     ]);
+    const podName = podNameRaw === '(未取得)' ? podNameRaw : applyPusanTs(podNameRaw);
 
     // ③ ピックアップ希望日計算 (CY OPEN の前1営業日)
     const cyOpen = bkg.cr49f_cy_open ? bkg.cr49f_cy_open.substring(0,10) : null;
