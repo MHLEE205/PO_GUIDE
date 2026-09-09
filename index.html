@@ -866,10 +866,102 @@ async function fillCncKobePdf(bytes, ctx){
   return pdfDoc.save();
 }
 
+// 辰巳商会フォーム（大阪港：HEUNG A/KMTC/SINOKOR/NAMSUNG/DONG YOUNG/PAN OCEANで共通様式）への自動入力
+// 座標は sample/OSAKA/ 内の6船社分サンプルをPyMuPDFで解析し、全社で座標が共通であることを確認済み
+async function fillTatsumiOsakaPdf(bytes, ctx){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.load(bytes);
+  const page = pdfDoc.getPages()[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const draw = (text, x, y, size=11) => {
+    if(!text) return;
+    try {
+      const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
+      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+    } catch(e) {
+      console.warn('PDF記入をスキップ:', text, e.message);
+    }
+  };
+  const pickup = mdParts(ctx.pickupDate);
+  const cut    = mdParts(ctx.cyCut);
+  draw(ctx.vslName, 185, 584.5, 11);
+  draw(ctx.bkgNo,   185, 467.4, 11);
+  draw(ctx.pod,     185, 427.7, 11);
+  // コンテナ本数（TYPE/SIZE表の「ドライ9'6(DH)」行・40'列の空欄）
+  if(ctx.containerQty) draw(ctx.containerQty, 243, 368.5, 11);
+  draw(cut.month,    231, 545, 11);
+  draw(cut.day,      298, 545, 11);
+  draw(pickup.month, 230, 271, 11);
+  draw(pickup.day,   298, 271, 11);
+  return pdfDoc.save();
+}
+
+// KMTC神戸フォーム（専用フォーム）への自動入力
+// 座標は sample/KOBE/KMTC KOBE.pdf をPyMuPDFで解析して算出（このPDFはページ高829.44pt、A4とは異なる）
+async function fillKmtcKobePdf(bytes, ctx){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.load(bytes);
+  const page = pdfDoc.getPages()[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const draw = (text, x, y, size=11) => {
+    if(!text) return;
+    try {
+      const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
+      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+    } catch(e) {
+      console.warn('PDF記入をスキップ:', text, e.message);
+    }
+  };
+  const pickup = mdParts(ctx.pickupDate);
+  draw(ctx.vslName, 183, 628.9, 11);
+  draw(ctx.bkgNo,   183, 609.1, 11);
+  draw(ctx.pod,     368, 590.7, 11); // 最終仕向地欄
+  // コンテナ本数（TYPE/SIZE表の「ドライ9'6(DH)」行・40'(本数)列の空欄）
+  if(ctx.containerQty) draw(ctx.containerQty, 235, 513.6, 11);
+  draw(pickup.month, 395, 646.1, 11);
+  draw(pickup.day,   460, 647.2, 11);
+  return pdfDoc.save();
+}
+
+// SINOKOR神戸フォーム（住友倉庫KICT様式）への自動入力
+// 座標は sample/KOBE/SINOKOR KOBE.pdf（空欄テンプレート）をPyMuPDFで解析して算出
+async function fillSinokorKobePdf(bytes, ctx){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.load(bytes);
+  const page = pdfDoc.getPages()[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const draw = (text, x, y, size=11) => {
+    if(!text) return;
+    try {
+      const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
+      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+    } catch(e) {
+      console.warn('PDF記入をスキップ:', text, e.message);
+    }
+  };
+  const pickup = mdParts(ctx.pickupDate);
+  draw(ctx.vslName, 60,  646.9, 11); // 本船名/VOY欄
+  draw(ctx.pod,     320, 646.9, 11); // 陸揚港/最終仕向地欄
+  draw(ctx.bkgNo,   320, 591.9, 11);
+  if(pickup.month || pickup.day) draw(`${pickup.month}/${pickup.day}`, 68, 333.9, 11); // 搬出日欄
+  if(ctx.containerQty) draw(ctx.containerQty, 270, 333.9, 11); // 本数欄
+  return pdfDoc.save();
+}
+
 // キー: fillerKey() の戻り値 → 実装関数
 // 新しい船社/港を対応させる場合は、sample PDFをPyMuPDFで解析して座標を求め、ここに追加する
+// 「古着」は「古紙」とレイアウトが同一のテンプレートのため同じ関数を使用（sample/CNC KOBE_古着.pdfの実データで座標一致を確認済み）
 const PDF_FILLERS = {
   'KOBE_CNC_古紙': fillCncKobePdf,
+  'KOBE_CNC_古着': fillCncKobePdf,
+  'KOBE_KMTC': fillKmtcKobePdf,
+  'KOBE_SINOKOR': fillSinokorKobePdf,
+  'OSAKA_HEUNG-A': fillTatsumiOsakaPdf,
+  'OSAKA_KMTC': fillTatsumiOsakaPdf,
+  'OSAKA_SINOKOR': fillTatsumiOsakaPdf,
+  'OSAKA_NAMSUNG': fillTatsumiOsakaPdf,
+  'OSAKA_DONG YOUNG': fillTatsumiOsakaPdf,
+  'OSAKA_PAN OCEAN': fillTatsumiOsakaPdf,
 };
 
 async function downloadFileBytes(driveId, itemId){
