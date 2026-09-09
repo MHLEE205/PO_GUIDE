@@ -512,7 +512,7 @@
       </div>
     </div>
 
-    <div class="card" id="card-TSLINE-KOBE" data-port="KOBE" data-carrier="ts line tsline" data-carrier-key="TS LINE">
+    <div class="card" id="card-TSLINE-KOBE" data-port="KOBE" data-carrier="ts tsline" data-carrier-key="TS LINE">
       <div class="card-header">
         <div class="carrier-icon" style="background:#1a2a3a;color:#93c5fd;">TS</div>
         <div><div class="carrier-name">TS LINE</div><div class="carrier-sub">神戸港</div></div>
@@ -1141,10 +1141,13 @@ function highlightCards(carrierName, polName){
   const port    = portFromPol(polName);
   const matched = [];
   document.querySelectorAll('#cardsGrid .card').forEach(card => {
-    const cData = card.dataset.carrier.toLowerCase();
     const pData = card.dataset.port;
-    const carrierMatch = cData.split(' ').some(k => k && carrier.includes(k)) ||
-                         carrier.split(' ').some(k => k && cData.includes(k));
+    // 完全一致トークン方式：部分文字列一致(includes)だと「HEUNG A」の「A」や「TS LINE」の「LINE」等の
+    // 短い/汎用的な単語が他社と誤マッチしていたため、2文字以上のトークンの完全一致のみで判定する
+    const cTokens = card.dataset.carrier.toLowerCase().split(' ').filter(k => k.length >= 2);
+    const carrierTokens = carrier.split(' ').filter(k => k.length >= 2);
+    const carrierMatch = cTokens.some(k => carrierTokens.includes(k)) ||
+                         carrierTokens.some(k => cTokens.includes(k));
     const portMatch = !port || pData === port;
     if(carrierMatch && portMatch){
       card.classList.add('matched');
