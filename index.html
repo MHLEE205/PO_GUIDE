@@ -1194,7 +1194,7 @@ function showMailPreview(){
   const el = document.getElementById('autoFetchResult');
   if(!el || !_pendingMail) return;
   el.innerHTML = `<div class="edit-box">
-    <div class="edit-box-title">📧 メール内容の確認（下書きを作成します。実際の送信はOutlookから行ってください）</div>
+    <div class="edit-box-title">📧 メール内容の確認（作成後、そのままOutlookの画面が開きます。内容を確認して送信してください）</div>
     <div class="card-row"><div class="card-key">宛先</div><div class="card-val">${_pendingMail.to}</div></div>
     <div class="card-row"><div class="card-key">件名</div><div class="card-val">${_pendingMail.subject}</div></div>
     <div class="card-row"><div class="card-key">本文</div><div class="card-val" style="white-space:pre-wrap;">${_pendingMail.body}</div></div>
@@ -1222,20 +1222,26 @@ function cancelPendingMail(){
 async function createDraftMail(btnEl){
   if(!_pendingMail) return;
   const origLabel = btnEl.textContent;
-  btnEl.disabled = true; btnEl.textContent = '⏳ 下書き作成中...';
+  btnEl.disabled = true; btnEl.textContent = '⏳ メール作成中...';
+  // ポップアップブロック回避のため、クリック直後（非同期処理の前）に空タブを先に開いておく
+  const mailWin = window.open('', '_blank');
   try {
     const draft = await createMailDraft(_pendingMail.to, _pendingMail.subject, _pendingMail.body, _pendingMail.bytes, _pendingMail.filename);
     // 作成したPOをPC側にも保存（控え）
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    btnEl.textContent = '✅ 下書き作成完了（PCにも保存済み）';
+    btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
     const linkArea = document.getElementById('draftLinkArea');
-    if(linkArea && draft.webLink){
-      linkArea.innerHTML = `<div style="margin-top:8px;"><a class="btn btn-mail" href="${draft.webLink}" target="_blank">📨 Outlookで下書きを開いて送信</a></div>`;
+    if(draft.webLink){
+      if(mailWin) mailWin.location.href = draft.webLink;
+      if(linkArea) linkArea.innerHTML = `<div style="margin-top:8px;"><a class="btn btn-mail" href="${draft.webLink}" target="_blank">📨 メール作成画面をもう一度開く</a></div>`;
+    } else if(mailWin){
+      mailWin.close();
     }
     _pendingMail = null;
     setMiniFlow(5);
   } catch(e) {
-    alert('下書き作成エラー: ' + e.message);
+    if(mailWin) mailWin.close();
+    alert('メール作成エラー: ' + e.message);
     btnEl.textContent = origLabel;
     btnEl.disabled = false;
   }
