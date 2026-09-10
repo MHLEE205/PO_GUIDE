@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>P/O申請ガイド — LEENAI</title>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
   :root {
     --bg:          #0f1117;
@@ -1039,42 +1039,49 @@ const PDF_FILLERS = {
 };
 
 // ════════════════════════════════════════════
-// Excel自動入力 + メール送信（xlsx.js使用）
+// Excel自動入力 + メール送信（JSZipでxlsx内部のセルXMLだけを直接書き換え、
+// スタイル・ロゴ画像・結合セル等の元書式を100%保持する）
 // ════════════════════════════════════════════
-
-// 既存セルの書式(スタイル)を保持したまま値だけ書き換える
-function setXlsxCell(ws, addr, value, type){
-  const cell = ws[addr] || {};
-  cell.t = type;
-  cell.v = value;
-  delete cell.w; // 表示用キャッシュを消して再計算させる
-  ws[addr] = cell;
-}
 
 // JS日付文字列(YYYY-MM-DD) → Excelシリアル値（1900日付システム、Dec 30 1899起点）
 function toExcelSerial(dateStr){
-  const d = Date.UTC(...dateStr.split('-').map((v,i)=> i===1 ? Number(v)-1 : Number(v)));
+  const parts = dateStr.split('-').map(Number);
+  const d = Date.UTC(parts[0], parts[1]-1, parts[2]);
   const epoch = Date.UTC(1899, 11, 30);
   return Math.round((d - epoch) / 86400000);
 }
 
+function escapeXmlText(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 指定シートXML内の文字列セルの値だけをinlineStrに置き換える（スタイル属性sはそのまま維持）
+function xlsxSetStringCell(xml, addr, value){
+  const re = new RegExp(`<c r="${addr}" s="(\\d+)" t="s"><v>\\d+</v></c>`);
+  return xml.replace(re, (_, s) => `<c r="${addr}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${escapeXmlText(value || '')}</t></is></c>`);
+}
+
+// 指定シートXML内の数値セルの値だけを置き換える（スタイル属性sはそのまま維持）
+function xlsxSetNumberCell(xml, addr, value){
+  const re = new RegExp(`<c r="${addr}" s="(\\d+)"><v>[^<]*</v></c>`);
+  return xml.replace(re, (_, s) => `<c r="${addr}" s="${s}"><v>${value}</v></c>`);
+}
+
 // INTERASIA大阪フォーム（上組/DICT共通様式）への自動入力
-// 座標は sample/OSAKA/INTERASIA_OSAKA.xlsx（過去実績記入済）をopenpyxlで解析して算出
+// 対象セルは sample/OSAKA/INTERASIA_OSAKA.xlsx（過去実績記入済）のxl/worksheets/sheet1.xmlを直接解析して特定
 async function fillInterasiaOsakaXlsx(bytes, ctx){
-  const wb = XLSX.read(bytes, { type:'array', cellStyles:true, bookVBA:true });
-  const sheetName = wb.SheetNames.find(n => n.includes('EMPTY CONTAINER')) || wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  setXlsxCell(ws, 'E11',  ctx.vslName || '', 's');           // 本船名
-  setXlsxCell(ws, 'AE11', ctx.voyNo   || '', 's');           // VOY NO.
-  setXlsxCell(ws, 'E12',  ctx.pod     || '', 's');           // 陸揚港
-  setXlsxCell(ws, 'AE12', ctx.pod     || '', 's');           // 最終仕向地
-  setXlsxCell(ws, 'H13',  ctx.bkgNo   || '', 's');           // Booking No.
-  if(ctx.pickupDate){
-    // 元テンプレートの引取日欄は書式が壊れている（時刻表記になる）ため、書式ごと上書きする
-    ws['E15'] = { t:'n', v: toExcelSerial(ctx.pickupDate), z:'yyyy/mm/dd' };
-  }
-  if(ctx.containerQty) setXlsxCell(ws, 'F21', Number(ctx.containerQty), 'n'); // 40'(9'6")本数
-  return XLSX.write(wb, { type:'array', bookType:'xlsx', cellStyles:true });
+  const zip = await JSZip.loadAsync(bytes);
+  const sheetPath = 'xl/worksheets/sheet1.xml'; // = 「EMPTY CONTAINER PICK UP ORDER」シート（workbook.xmlのrId1）
+  let xml = await zip.file(sheetPath).async('string');
+  xml = xlsxSetStringCell(xml, 'E11',  ctx.vslName || '');   // 本船名
+  xml = xlsxSetStringCell(xml, 'AE11', ctx.voyNo   || '');   // VOY NO.
+  xml = xlsxSetStringCell(xml, 'E12',  ctx.pod     || '');   // 陸揚港
+  xml = xlsxSetStringCell(xml, 'AE12', ctx.pod     || '');   // 最終仕向地
+  xml = xlsxSetStringCell(xml, 'H13',  ctx.bkgNo   || '');   // Booking No.
+  if(ctx.pickupDate) xml = xlsxSetNumberCell(xml, 'E15', toExcelSerial(ctx.pickupDate)); // 引取日
+  if(ctx.containerQty) xml = xlsxSetNumberCell(xml, 'F21', Number(ctx.containerQty));    // 40'(9'6")本数
+  zip.file(sheetPath, xml);
+  return zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
 }
 
 // キー: `${port}_${carrierKey}` → { filler, mailTo, subjectPrefix }
