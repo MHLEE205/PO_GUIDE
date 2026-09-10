@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>P/O申請ガイド — LEENAI</title>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg:          #0f1117;
@@ -619,8 +620,8 @@ const DV_URL       = 'https://orgde512c6f.crm7.dynamics.com';
 const DV_API       = DV_URL + '/api/data/v9.2';
 const REDIRECT_URI = location.href.split('?')[0].split('#')[0];
 const DV_SCOPE     = DV_URL + '/user_impersonation openid profile email offline_access';
-const GRAPH_SCOPE  = 'https://graph.microsoft.com/Files.ReadWrite.All offline_access';
-const AUTH_SCOPE   = DV_SCOPE + ' https://graph.microsoft.com/Files.ReadWrite.All';
+const GRAPH_SCOPE  = 'https://graph.microsoft.com/Files.ReadWrite.All https://graph.microsoft.com/Mail.Send offline_access';
+const AUTH_SCOPE   = DV_SCOPE + ' https://graph.microsoft.com/Files.ReadWrite.All https://graph.microsoft.com/Mail.Send';
 const GRAPH_API    = 'https://graph.microsoft.com/v1.0';
 
 // フォーム自動取得用（船社別FAX/メールカードと同じ港フォルダ）
@@ -868,10 +869,17 @@ async function autoFetchForm(port, carrierKey){
         ? '<div style="font-size:12px;color:var(--text2);margin-bottom:6px;">複数のフォームが見つかりました。該当するものを選択してください：</div>'
         : '';
       resultEl.innerHTML = note + files.map((f,i) => {
-        const hasFiller = !!PDF_FILLERS[fillerKey(port, carrierKey, f.name)];
-        const fillBtn = hasFiller
-          ? `<button class="btn btn-primary" style="margin:2px 4px 2px 0;background:var(--accent2);" onclick="autoFillAndDownload(${i}, this)">📝 自動入力してダウンロード</button>`
-          : `<span style="font-size:11px;color:var(--text2);margin-right:8px;">（自動入力 未対応）</span>`;
+        const hasPdfFiller  = !!PDF_FILLERS[fillerKey(port, carrierKey, f.name)];
+        const xlsxDef       = XLSX_FILLERS[`${port}_${carrierKey.toUpperCase()}`];
+        const hasXlsxFiller = !!xlsxDef && f.name.toLowerCase().endsWith('.xlsx');
+        let fillBtn;
+        if(hasPdfFiller){
+          fillBtn = `<button class="btn btn-primary" style="margin:2px 4px 2px 0;background:var(--accent2);" onclick="autoFillAndDownload(${i}, this)">📝 自動入力してダウンロード</button>`;
+        } else if(hasXlsxFiller){
+          fillBtn = `<button class="btn btn-primary" style="margin:2px 4px 2px 0;background:var(--accent2);" onclick="prepareXlsxMail(${i}, XLSX_FILLERS['${port}_${carrierKey.toUpperCase()}'], this)">📧 自動入力してメール準備</button>`;
+        } else {
+          fillBtn = `<span style="font-size:11px;color:var(--text2);margin-right:8px;">（自動入力 未対応）</span>`;
+        }
         return `<div style="margin-bottom:6px;">
           <a class="btn btn-fax" style="margin:2px 4px 2px 0;" href="${f.webUrl}" target="_blank">📥 ${f.name}</a>
           ${fillBtn}
@@ -1029,6 +1037,51 @@ const PDF_FILLERS = {
   'OSAKA_PAN OCEAN': fillTatsumiOsakaPdf,
 };
 
+// ════════════════════════════════════════════
+// Excel自動入力 + メール送信（xlsx.js使用）
+// ════════════════════════════════════════════
+
+// 既存セルの書式(スタイル)を保持したまま値だけ書き換える
+function setXlsxCell(ws, addr, value, type){
+  const cell = ws[addr] || {};
+  cell.t = type;
+  cell.v = value;
+  delete cell.w; // 表示用キャッシュを消して再計算させる
+  ws[addr] = cell;
+}
+
+// JS日付文字列(YYYY-MM-DD) → Excelシリアル値（1900日付システム、Dec 30 1899起点）
+function toExcelSerial(dateStr){
+  const d = Date.UTC(...dateStr.split('-').map((v,i)=> i===1 ? Number(v)-1 : Number(v)));
+  const epoch = Date.UTC(1899, 11, 30);
+  return Math.round((d - epoch) / 86400000);
+}
+
+// INTERASIA大阪フォーム（上組/DICT共通様式）への自動入力
+// 座標は sample/OSAKA/INTERASIA_OSAKA.xlsx（過去実績記入済）をopenpyxlで解析して算出
+async function fillInterasiaOsakaXlsx(bytes, ctx){
+  const wb = XLSX.read(bytes, { type:'array', cellStyles:true, bookVBA:true });
+  const sheetName = wb.SheetNames.find(n => n.includes('EMPTY CONTAINER')) || wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  setXlsxCell(ws, 'E11',  ctx.vslName || '', 's');           // 本船名
+  setXlsxCell(ws, 'AE11', ctx.voyNo   || '', 's');           // VOY NO.
+  setXlsxCell(ws, 'E12',  ctx.pod     || '', 's');           // 陸揚港
+  setXlsxCell(ws, 'AE12', ctx.pod     || '', 's');           // 最終仕向地
+  setXlsxCell(ws, 'H13',  ctx.bkgNo   || '', 's');           // Booking No.
+  if(ctx.pickupDate){
+    // 元テンプレートの引取日欄は書式が壊れている（時刻表記になる）ため、書式ごと上書きする
+    ws['E15'] = { t:'n', v: toExcelSerial(ctx.pickupDate), z:'yyyy/mm/dd' };
+  }
+  if(ctx.containerQty) setXlsxCell(ws, 'F21', Number(ctx.containerQty), 'n'); // 40'(9'6")本数
+  return XLSX.write(wb, { type:'array', bookType:'xlsx', cellStyles:true });
+}
+
+// キー: `${port}_${carrierKey}` → { filler, mailTo, subjectPrefix }
+// メール件名はテンプレート内シート「件名指定」の書式（例：IAL-Booking No,）に実際のBooking Noを付加する
+const XLSX_FILLERS = {
+  'OSAKA_INTERASIA': { filler: fillInterasiaOsakaXlsx, mailTo: 'osaka_empty@kamigumi.co.jp', subjectPrefix: 'IAL-Booking No,' },
+};
+
 async function downloadFileBytes(driveId, itemId){
   const token = await getGraphToken();
   const res = await fetch(`${GRAPH_API}/drives/${driveId}/items/${itemId}/content`, {
@@ -1038,8 +1091,8 @@ async function downloadFileBytes(driveId, itemId){
   return res.arrayBuffer();
 }
 
-function triggerDownload(bytes, filename){
-  const blob = new Blob([bytes], { type:'application/pdf' });
+function triggerDownload(bytes, filename, mimeType='application/pdf'){
+  const blob = new Blob([bytes], { type:mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
@@ -1068,7 +1121,7 @@ async function autoFillAndDownload(fileIndex, btnEl){
   }
 }
 
-// 「フォームを自動取得」を経由せず、1クリックでSharePoint検索→自動入力→ダウンロードまで行う
+// 「フォームを自動取得」を経由せず、1クリックでSharePoint検索→自動入力→ダウンロード（またはメール準備）まで行う
 async function autoFillDirect(port, carrierKey, btnEl){
   const folderUrl = port === 'OSAKA' ? OSAKA_FOLDER_URL : port === 'KOBE' ? KOBE_FOLDER_URL : null;
   if(!folderUrl || !lastBkgContext){ alert('先にBKG検索を行ってください。'); return; }
@@ -1082,16 +1135,128 @@ async function autoFillDirect(port, carrierKey, btnEl){
       btnEl.disabled = false; btnEl.textContent = origLabel;
       return;
     }
-    const fillableIndex = files.findIndex(f => !!PDF_FILLERS[fillerKey(port, carrierKey, f.name)]);
-    if(fillableIndex === -1){
-      alert('この船社・フォームはまだ自動入力に対応していません。「フォームを自動取得」から手動でダウンロードしてください。');
-      btnEl.disabled = false; btnEl.textContent = origLabel;
+    // ① PDF自動入力対応を優先して探す
+    const pdfIndex = files.findIndex(f => !!PDF_FILLERS[fillerKey(port, carrierKey, f.name)]);
+    if(pdfIndex !== -1){
+      await autoFillAndDownload(pdfIndex, btnEl);
       return;
     }
-    await autoFillAndDownload(fillableIndex, btnEl);
+    // ② Excel自動入力＋メール送信対応を探す
+    const xlsxDef = XLSX_FILLERS[`${port}_${carrierKey.toUpperCase()}`];
+    const xlsxIndex = xlsxDef ? files.findIndex(f => f.name.toLowerCase().endsWith('.xlsx')) : -1;
+    if(xlsxIndex !== -1){
+      await prepareXlsxMail(xlsxIndex, xlsxDef, btnEl);
+      return;
+    }
+    alert('この船社・フォームはまだ自動入力に対応していません。「フォーム(空白)」から手動でダウンロードしてください。');
+    btnEl.disabled = false; btnEl.textContent = origLabel;
   } catch(e) {
     alert('エラー: ' + e.message);
     btnEl.disabled = false; btnEl.textContent = origLabel;
+  }
+}
+
+// ── Excel自動入力 → 送信前プレビュー ──
+let _pendingMail = null;
+
+async function prepareXlsxMail(fileIndex, def, btnEl){
+  const file = _foundFormFiles[fileIndex];
+  const origLabel = btnEl.textContent;
+  btnEl.textContent = '⏳ Excel編集中...';
+  try {
+    const bytes  = await downloadFileBytes(file.driveId, file.id);
+    const filled = await def.filler(bytes, lastBkgContext);
+    _pendingMail = {
+      to: def.mailTo,
+      subject: `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
+      body: `${lastBkgContext.bkgNo} のピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
+      bytes: filled,
+      filename: `PO(${lastBkgContext.bkgNo}).xlsx`
+    };
+    showMailPreview();
+  } finally {
+    btnEl.textContent = origLabel;
+    btnEl.disabled = false;
+  }
+}
+
+function showMailPreview(){
+  const el = document.getElementById('autoFetchResult');
+  if(!el || !_pendingMail) return;
+  el.innerHTML = `<div class="edit-box">
+    <div class="edit-box-title">📧 送信前の確認（内容を確認してから送信してください）</div>
+    <div class="card-row"><div class="card-key">宛先</div><div class="card-val">${_pendingMail.to}</div></div>
+    <div class="card-row"><div class="card-key">件名</div><div class="card-val">${_pendingMail.subject}</div></div>
+    <div class="card-row"><div class="card-key">添付</div><div class="card-val">${_pendingMail.filename}</div></div>
+    <div style="margin-top:10px;">
+      <button class="btn btn-fax" onclick="downloadPendingMailAttachment()">📥 添付を確認（ダウンロード）</button>
+      <button class="btn btn-primary" style="background:var(--accent2);margin-left:6px;" onclick="sendPendingMail(this)">📧 送信する</button>
+      <button class="btn" style="background:var(--surface2);color:var(--text2);margin-left:6px;" onclick="cancelPendingMail()">✖ キャンセル</button>
+    </div>
+  </div>`;
+}
+
+function downloadPendingMailAttachment(){
+  if(!_pendingMail) return;
+  triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+function cancelPendingMail(){
+  _pendingMail = null;
+  const el = document.getElementById('autoFetchResult');
+  if(el) el.innerHTML = '';
+}
+
+async function sendPendingMail(btnEl){
+  if(!_pendingMail) return;
+  const origLabel = btnEl.textContent;
+  btnEl.disabled = true; btnEl.textContent = '⏳ 送信中...';
+  try {
+    await sendMailWithAttachment(_pendingMail.to, _pendingMail.subject, _pendingMail.body, _pendingMail.bytes, _pendingMail.filename);
+    btnEl.textContent = '✅ 送信完了';
+    _pendingMail = null;
+    setMiniFlow(5);
+  } catch(e) {
+    alert('送信エラー: ' + e.message);
+    btnEl.textContent = origLabel;
+    btnEl.disabled = false;
+  }
+}
+
+function arrayBufferToBase64(buf){
+  let binary = '';
+  const bytes = new Uint8Array(buf);
+  const chunk = 0x8000;
+  for(let i=0; i<bytes.length; i+=chunk){
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+  }
+  return btoa(binary);
+}
+
+// Graph API (/me/sendMail) でExcel添付付きメールを送信
+// ※ Azure ADアプリ登録にMail.Send権限の追加＋管理者同意が必要
+async function sendMailWithAttachment(to, subject, bodyText, attachmentBytes, attachmentName){
+  const token = await getGraphToken();
+  const res = await fetch(`${GRAPH_API}/me/sendMail`, {
+    method:'POST',
+    headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      message: {
+        subject,
+        body: { contentType:'Text', content: bodyText },
+        toRecipients: [{ emailAddress: { address: to } }],
+        attachments: [{
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: attachmentName,
+          contentBytes: arrayBufferToBase64(attachmentBytes)
+        }]
+      },
+      saveToSentItems: true
+    })
+  });
+  if(!res.ok){
+    const e = await res.json().catch(()=>({}));
+    throw new Error(`Graph API ${res.status}: ${e?.error?.message || res.statusText}`);
   }
 }
 
