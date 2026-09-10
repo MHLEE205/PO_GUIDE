@@ -1214,7 +1214,9 @@ async function sendPendingMail(btnEl){
   btnEl.disabled = true; btnEl.textContent = '⏳ 送信中...';
   try {
     await sendMailWithAttachment(_pendingMail.to, _pendingMail.subject, _pendingMail.body, _pendingMail.bytes, _pendingMail.filename);
-    btnEl.textContent = '✅ 送信完了';
+    // 送信したPOをPC側にも保存（控え）
+    triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    btnEl.textContent = '✅ 送信完了（PCにも保存済み）';
     _pendingMail = null;
     setMiniFlow(5);
   } catch(e) {
