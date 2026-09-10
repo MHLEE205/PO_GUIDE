@@ -823,7 +823,7 @@ async function autoFetchForm(port, carrierKey){
       resultEl.innerHTML = note + files.map((f,i) => {
         const hasFiller = !!PDF_FILLERS[fillerKey(port, carrierKey, f.name)];
         const fillBtn = hasFiller
-          ? `<button class="btn btn-primary" style="margin:2px 4px 2px 0;" onclick="autoFillAndDownload(${i}, this)">📝 自動入力してダウンロード</button>`
+          ? `<button class="btn btn-primary" style="margin:2px 4px 2px 0;background:var(--accent2);" onclick="autoFillAndDownload(${i}, this)">📝 自動入力してダウンロード</button>`
           : `<span style="font-size:11px;color:var(--text2);margin-right:8px;">（自動入力 未対応）</span>`;
         return `<div style="margin-bottom:6px;">
           <a class="btn btn-fax" style="margin:2px 4px 2px 0;" href="${f.webUrl}" target="_blank">📥 ${f.name}</a>
@@ -1124,7 +1124,7 @@ async function searchBkg(){
           </label>
         </div>
       </div>`;
-      html += `<button class="goto-btn" style="background:var(--accent2);" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
+      html += `<button class="goto-btn" style="background:var(--accent);" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
       <button class="goto-btn" style="background:var(--surface2);color:var(--text2);margin-left:8px;" onclick="scrollToCard('${matchedCards[0]}')">🔎 詳細カードを見る</button>
       <div id="autoFetchResult" style="margin-top:10px;"></div>`;
       setMiniFlow(3);
