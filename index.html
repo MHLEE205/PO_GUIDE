@@ -1178,8 +1178,9 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
     const filled = await def.filler(bytes, lastBkgContext);
     _pendingMail = {
       to: def.mailTo,
+      cc: 'rcp@leenearcorp.com',
       subject: `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
-      body: `お世話になっております。\n${lastBkgContext.bkgNo} のピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
+      body: `お世話になっております。\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
       bytes: filled,
       filename: `PO(${lastBkgContext.bkgNo}).xlsx`
     };
@@ -1196,6 +1197,7 @@ function showMailPreview(){
   el.innerHTML = `<div class="edit-box">
     <div class="edit-box-title">📧 メール内容の確認（作成後、そのままOutlookの画面が開きます。内容を確認して送信してください）</div>
     <div class="card-row"><div class="card-key">宛先</div><div class="card-val">${_pendingMail.to}</div></div>
+    <div class="card-row"><div class="card-key">CC</div><div class="card-val">${_pendingMail.cc || '—'}</div></div>
     <div class="card-row"><div class="card-key">件名</div><div class="card-val">${_pendingMail.subject}</div></div>
     <div class="card-row"><div class="card-key">本文</div><div class="card-val" style="white-space:pre-wrap;">${_pendingMail.body}</div></div>
     <div class="card-row"><div class="card-key">添付</div><div class="card-val">${_pendingMail.filename}</div></div>
@@ -1219,6 +1221,13 @@ function cancelPendingMail(){
   if(el) el.innerHTML = '';
 }
 
+// Outlook on the webの公式「新規作成」ディープリンク（宛先/CC/件名/本文をURLパラメータで渡す）
+// 送信ボタンのある編集画面が確実に開けるが、ブラウザの制約で添付ファイルは自動で付かない
+function buildComposeUrl(to, cc, subject, body){
+  const p = new URLSearchParams({ to: to || '', cc: cc || '', subject: subject || '', body: body || '' });
+  return `https://outlook.office.com/mail/deeplink/compose?${p.toString()}`;
+}
+
 async function createDraftMail(btnEl){
   if(!_pendingMail) return;
   const origLabel = btnEl.textContent;
@@ -1226,19 +1235,21 @@ async function createDraftMail(btnEl){
   // ポップアップブロック回避のため、クリック直後（非同期処理の前）に空タブを先に開いておく
   const mailWin = window.open('', '_blank');
   try {
-    const draft = await createMailDraft(_pendingMail.to, _pendingMail.subject, _pendingMail.body, _pendingMail.bytes, _pendingMail.filename);
+    // ①Graphで下書き（添付ファイル付き）を作成し、Outlookの下書きフォルダに保存（控え）
+    const draft = await createMailDraft(_pendingMail.to, _pendingMail.cc, _pendingMail.subject, _pendingMail.body, _pendingMail.bytes, _pendingMail.filename);
     // 作成したPOをPC側にも保存（控え）
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
+    // ②送信ボタンが確実にある「新規作成」画面を開く（宛先・CC・件名・本文は自動入力、添付は手動で添付が必要）
+    const composeUrl = buildComposeUrl(_pendingMail.to, _pendingMail.cc, _pendingMail.subject, _pendingMail.body);
+    if(mailWin) mailWin.location.href = composeUrl;
     const linkArea = document.getElementById('draftLinkArea');
-    // webLinkは既定で「読み取り専用」画面(/mail/deeplink/read/…)になるため、
-    // 宛先・件名・送信ボタンが使える「編集」画面(/mail/deeplink/compose/…)に変換する
-    const composeLink = draft.webLink ? draft.webLink.replace('/mail/deeplink/read/', '/mail/deeplink/compose/') : null;
-    if(composeLink){
-      if(mailWin) mailWin.location.href = composeLink;
-      if(linkArea) linkArea.innerHTML = `<div style="margin-top:8px;"><a class="btn btn-mail" href="${composeLink}" target="_blank">📨 メール作成画面をもう一度開く</a></div>`;
-    } else if(mailWin){
-      mailWin.close();
+    if(linkArea){
+      linkArea.innerHTML = `<div style="margin-top:8px;font-size:12px;color:var(--text2);">⚠️ 開いた画面に添付ファイル（先ほどダウンロードされたExcel）を手動で添付してから送信してください。</div>
+        <div style="margin-top:6px;">
+          <a class="btn btn-mail" href="${composeUrl}" target="_blank">📨 メール作成画面をもう一度開く</a>
+          ${draft.webLink ? `<a class="btn btn-fax" style="margin-left:6px;" href="${draft.webLink}" target="_blank">📎 添付付き下書きを開く（編集は✎アイコンから）</a>` : ''}
+        </div>`;
     }
     _pendingMail = null;
     setMiniFlow(5);
@@ -1261,7 +1272,7 @@ function arrayBufferToBase64(buf){
 }
 
 // Graph API (/me/messages) でExcel添付付きメールの下書きを作成（送信はしない。Outlookの下書きフォルダに保存）
-async function createMailDraft(to, subject, bodyText, attachmentBytes, attachmentName){
+async function createMailDraft(to, cc, subject, bodyText, attachmentBytes, attachmentName){
   const token = await getGraphToken();
   // contentType:'Text'だとOutlook側の編集画面変換時に先頭行が欠落する事象があったため、
   // 改行を<br>にしたHTML本文として送る
@@ -1273,6 +1284,7 @@ async function createMailDraft(to, subject, bodyText, attachmentBytes, attachmen
       subject,
       body: { contentType:'HTML', content: htmlBody },
       toRecipients: [{ emailAddress: { address: to } }],
+      ccRecipients: cc ? [{ emailAddress: { address: cc } }] : [],
       attachments: [{
         '@odata.type': '#microsoft.graph.fileAttachment',
         name: attachmentName,
