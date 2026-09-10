@@ -835,8 +835,10 @@ function applyPusanTs(pod){
 // COMPASSの本船名フィールド（例："WECAN 2624W"）から本船名と航海番号を分離
 function parseVslVoy(raw){
   const s = String(raw||'').trim();
-  const m = s.match(/^(.*\S)[\s\/]+(\d{3,5}[A-Za-z]{0,2})$/);
-  if(m) return { vslName: m[1].trim(), voyNo: m[2].trim() };
+  // 最後の空白(または/)以降のトークンに数字が含まれていれば航海番号とみなす
+  // （"2624W"のような数字→英字だけでなく、"S080"のような英字→数字の順も対応）
+  const m = s.match(/^(.*\S)[\s\/]+(\S+)$/);
+  if(m && /\d/.test(m[2])) return { vslName: m[1].trim(), voyNo: m[2].trim() };
   return { vslName: s, voyNo: '' };
 }
 
