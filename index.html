@@ -1021,6 +1021,33 @@ async function autoFillAndDownload(fileIndex, btnEl){
   }
 }
 
+// 「フォームを自動取得」を経由せず、1クリックでSharePoint検索→自動入力→ダウンロードまで行う
+async function autoFillDirect(port, carrierKey, btnEl){
+  const folderUrl = port === 'OSAKA' ? OSAKA_FOLDER_URL : port === 'KOBE' ? KOBE_FOLDER_URL : null;
+  if(!folderUrl || !lastBkgContext){ alert('先にBKG検索を行ってください。'); return; }
+  const origLabel = btnEl.textContent;
+  btnEl.disabled = true; btnEl.textContent = '⏳ 検索中...';
+  try {
+    const files = await findCarrierFiles(folderUrl, carrierKey);
+    _foundFormFiles = files;
+    if(files.length === 0){
+      alert(`「${carrierKey}」に該当するフォームが見つかりませんでした。`);
+      btnEl.disabled = false; btnEl.textContent = origLabel;
+      return;
+    }
+    const fillableIndex = files.findIndex(f => !!PDF_FILLERS[fillerKey(port, carrierKey, f.name)]);
+    if(fillableIndex === -1){
+      alert('この船社・フォームはまだ自動入力に対応していません。「フォームを自動取得」から手動でダウンロードしてください。');
+      btnEl.disabled = false; btnEl.textContent = origLabel;
+      return;
+    }
+    await autoFillAndDownload(fillableIndex, btnEl);
+  } catch(e) {
+    alert('エラー: ' + e.message);
+    btnEl.disabled = false; btnEl.textContent = origLabel;
+  }
+}
+
 // ── BKG Search ──
 async function searchBkg(){
   const bkgNo = document.getElementById('bkgInput').value.trim().toUpperCase();
@@ -1124,7 +1151,8 @@ async function searchBkg(){
           </label>
         </div>
       </div>`;
-      html += `<button class="goto-btn" style="background:var(--accent);" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
+      html += `<button class="btn btn-primary" style="background:var(--accent2);margin:2px 8px 2px 0;" onclick="autoFillDirect('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}', this)">📝 自動入力してダウンロード</button>
+      <button class="goto-btn" style="background:var(--accent);" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォームを自動取得</button>
       <button class="goto-btn" style="background:var(--surface2);color:var(--text2);margin-left:8px;" onclick="scrollToCard('${matchedCards[0]}')">🔎 詳細カードを見る</button>
       <div id="autoFetchResult" style="margin-top:10px;"></div>`;
       setMiniFlow(3);
