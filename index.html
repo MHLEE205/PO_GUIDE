@@ -627,7 +627,14 @@ const GRAPH_API    = 'https://graph.microsoft.com/v1.0';
 const OSAKA_FOLDER_URL = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX';
 const KOBE_FOLDER_URL  = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL';
 
-let S = { accessToken: null, tokenExpiry: 0, refreshToken: null, graphToken: null, graphTokenExpiry: 0, userName: '', userEmail: '' };
+let S = { accessToken: null, tokenExpiry: 0, refreshToken: null, graphToken: null, graphTokenExpiry: 0, userName: '', userEmail: '', sessionExpiry: 0 };
+
+// ── ログイン状態の永続化（24時間）──
+const SESSION_KEY = 'po_guide_session';
+const SESSION_TTL_MS = 24*60*60*1000;
+function saveSession(){ try{ localStorage.setItem(SESSION_KEY, JSON.stringify(S)); }catch(e){} }
+function loadSession(){ try{ const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; } }
+function clearSession(){ try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
 
 // ── PKCE helpers ──
 function b64url(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''); }
@@ -677,10 +684,29 @@ async function handleCallback(){
         S.userEmail = pl.email || pl.preferred_username || '';
       }catch(e){}
     }
+    S.sessionExpiry = Date.now() + SESSION_TTL_MS;
+    saveSession();
     setLoggedIn();
     hideResult();
   } catch(e) {
     showResult(`<div class="error-box">認証エラー: ${e.message}</div>`);
+  }
+}
+
+// ── 保存済みセッションの復元（24時間以内なら再ログイン不要）──
+async function restoreSession(){
+  const saved = loadSession();
+  if(!saved || !saved.sessionExpiry || Date.now() > saved.sessionExpiry){
+    clearSession();
+    return;
+  }
+  S = saved;
+  try {
+    if(Date.now() > S.tokenExpiry) await refreshDvToken();
+    setLoggedIn();
+  } catch(e) {
+    clearSession();
+    S = { accessToken: null, tokenExpiry: 0, refreshToken: null, graphToken: null, graphTokenExpiry: 0, userName: '', userEmail: '', sessionExpiry: 0 };
   }
 }
 
@@ -708,10 +734,30 @@ function setMiniFlow(n){
   }
 }
 
+// ── Dataverse トークン更新（refresh_tokenで無言更新、24時間はログイン画面に戻さない）──
+async function refreshDvToken(){
+  if(!S.refreshToken) throw new Error('リフレッシュトークンがありません');
+  const res = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({ client_id:CLIENT_ID, grant_type:'refresh_token',
+      refresh_token:S.refreshToken, scope:DV_SCOPE })
+  });
+  const data = await res.json();
+  if(!data.access_token) throw new Error(data.error_description || 'トークン更新失敗');
+  S.accessToken = data.access_token;
+  S.tokenExpiry = Date.now() + (data.expires_in - 60)*1000;
+  if(data.refresh_token) S.refreshToken = data.refresh_token;
+  saveSession();
+  return S.accessToken;
+}
+
 // ── dvGet ──
 async function dvGet(path){
   if(!S.accessToken) throw new Error('ログインしてください');
-  if(Date.now() > S.tokenExpiry) throw new Error('セッション切れ。再ログインしてください');
+  if(Date.now() > S.tokenExpiry){
+    try { await refreshDvToken(); }
+    catch(e){ clearSession(); throw new Error('セッション切れ。再ログインしてください'); }
+  }
   const url = path.startsWith('http') ? path : DV_API + '/' + path;
   const res = await fetch(url, { headers:{
     'Authorization': 'Bearer ' + S.accessToken,
@@ -736,6 +782,7 @@ async function getGraphToken(){
   S.graphToken = data.access_token;
   S.graphTokenExpiry = Date.now() + (data.expires_in - 60)*1000;
   if(data.refresh_token) S.refreshToken = data.refresh_token;
+  saveSession();
   return S.graphToken;
 }
 
@@ -1349,7 +1396,10 @@ function applyFilters(){
 function toggleC(id){ document.getElementById(id).classList.toggle('open'); }
 
 // ── On load ──
-window.addEventListener('load', handleCallback);
+window.addEventListener('load', () => {
+  if(new URLSearchParams(location.search).has('code')) handleCallback();
+  else restoreSession();
+});
 </script>
 </body>
 </html>
