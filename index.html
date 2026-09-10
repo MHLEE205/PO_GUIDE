@@ -1192,15 +1192,17 @@ function showMailPreview(){
   const el = document.getElementById('autoFetchResult');
   if(!el || !_pendingMail) return;
   el.innerHTML = `<div class="edit-box">
-    <div class="edit-box-title">📧 送信前の確認（内容を確認してから送信してください）</div>
+    <div class="edit-box-title">📧 メール内容の確認（下書きを作成します。実際の送信はOutlookから行ってください）</div>
     <div class="card-row"><div class="card-key">宛先</div><div class="card-val">${_pendingMail.to}</div></div>
     <div class="card-row"><div class="card-key">件名</div><div class="card-val">${_pendingMail.subject}</div></div>
+    <div class="card-row"><div class="card-key">本文</div><div class="card-val" style="white-space:pre-wrap;">${_pendingMail.body}</div></div>
     <div class="card-row"><div class="card-key">添付</div><div class="card-val">${_pendingMail.filename}</div></div>
     <div style="margin-top:10px;">
       <button class="btn btn-fax" onclick="downloadPendingMailAttachment()">📥 添付を確認（ダウンロード）</button>
-      <button class="btn btn-primary" style="background:var(--accent2);margin-left:6px;" onclick="sendPendingMail(this)">📧 送信する</button>
+      <button class="btn btn-primary" style="background:var(--accent2);margin-left:6px;" onclick="createDraftMail(this)">📝 メール作成</button>
       <button class="btn" style="background:var(--surface2);color:var(--text2);margin-left:6px;" onclick="cancelPendingMail()">✖ キャンセル</button>
     </div>
+    <div id="draftLinkArea"></div>
   </div>`;
 }
 
@@ -1215,19 +1217,23 @@ function cancelPendingMail(){
   if(el) el.innerHTML = '';
 }
 
-async function sendPendingMail(btnEl){
+async function createDraftMail(btnEl){
   if(!_pendingMail) return;
   const origLabel = btnEl.textContent;
-  btnEl.disabled = true; btnEl.textContent = '⏳ 送信中...';
+  btnEl.disabled = true; btnEl.textContent = '⏳ 下書き作成中...';
   try {
-    await sendMailWithAttachment(_pendingMail.to, _pendingMail.subject, _pendingMail.body, _pendingMail.bytes, _pendingMail.filename);
-    // 送信したPOをPC側にも保存（控え）
+    const draft = await createMailDraft(_pendingMail.to, _pendingMail.subject, _pendingMail.body, _pendingMail.bytes, _pendingMail.filename);
+    // 作成したPOをPC側にも保存（控え）
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    btnEl.textContent = '✅ 送信完了（PCにも保存済み）';
+    btnEl.textContent = '✅ 下書き作成完了（PCにも保存済み）';
+    const linkArea = document.getElementById('draftLinkArea');
+    if(linkArea && draft.webLink){
+      linkArea.innerHTML = `<div style="margin-top:8px;"><a class="btn btn-mail" href="${draft.webLink}" target="_blank">📨 Outlookで下書きを開いて送信</a></div>`;
+    }
     _pendingMail = null;
     setMiniFlow(5);
   } catch(e) {
-    alert('送信エラー: ' + e.message);
+    alert('下書き作成エラー: ' + e.message);
     btnEl.textContent = origLabel;
     btnEl.disabled = false;
   }
@@ -1243,31 +1249,28 @@ function arrayBufferToBase64(buf){
   return btoa(binary);
 }
 
-// Graph API (/me/sendMail) でExcel添付付きメールを送信
-// ※ Azure ADアプリ登録にMail.Send権限の追加＋管理者同意が必要
-async function sendMailWithAttachment(to, subject, bodyText, attachmentBytes, attachmentName){
+// Graph API (/me/messages) でExcel添付付きメールの下書きを作成（送信はしない。Outlookの下書きフォルダに保存）
+async function createMailDraft(to, subject, bodyText, attachmentBytes, attachmentName){
   const token = await getGraphToken();
-  const res = await fetch(`${GRAPH_API}/me/sendMail`, {
+  const res = await fetch(`${GRAPH_API}/me/messages`, {
     method:'POST',
     headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
     body: JSON.stringify({
-      message: {
-        subject,
-        body: { contentType:'Text', content: bodyText },
-        toRecipients: [{ emailAddress: { address: to } }],
-        attachments: [{
-          '@odata.type': '#microsoft.graph.fileAttachment',
-          name: attachmentName,
-          contentBytes: arrayBufferToBase64(attachmentBytes)
-        }]
-      },
-      saveToSentItems: true
+      subject,
+      body: { contentType:'Text', content: bodyText },
+      toRecipients: [{ emailAddress: { address: to } }],
+      attachments: [{
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: attachmentName,
+        contentBytes: arrayBufferToBase64(attachmentBytes)
+      }]
     })
   });
   if(!res.ok){
     const e = await res.json().catch(()=>({}));
     throw new Error(`Graph API ${res.status}: ${e?.error?.message || res.statusText}`);
   }
+  return res.json(); // .webLink でOutlook上の下書きを直接開ける
 }
 
 // ── BKG Search ──
