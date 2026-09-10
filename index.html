@@ -1260,12 +1260,15 @@ function arrayBufferToBase64(buf){
 // Graph API (/me/messages) でExcel添付付きメールの下書きを作成（送信はしない。Outlookの下書きフォルダに保存）
 async function createMailDraft(to, subject, bodyText, attachmentBytes, attachmentName){
   const token = await getGraphToken();
+  // contentType:'Text'だとOutlook側の編集画面変換時に先頭行が欠落する事象があったため、
+  // 改行を<br>にしたHTML本文として送る
+  const htmlBody = bodyText.split('\n').map(escapeXmlText).join('<br>');
   const res = await fetch(`${GRAPH_API}/me/messages`, {
     method:'POST',
     headers:{ 'Authorization':'Bearer '+token, 'Content-Type':'application/json' },
     body: JSON.stringify({
       subject,
-      body: { contentType:'Text', content: bodyText },
+      body: { contentType:'HTML', content: htmlBody },
       toRecipients: [{ emailAddress: { address: to } }],
       attachments: [{
         '@odata.type': '#microsoft.graph.fileAttachment',
