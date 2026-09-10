@@ -1179,7 +1179,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
     _pendingMail = {
       to: def.mailTo,
       subject: `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
-      body: `${lastBkgContext.bkgNo} のピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
+      body: `お世話になっております。\n${lastBkgContext.bkgNo} のピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
       bytes: filled,
       filename: `PO(${lastBkgContext.bkgNo}).xlsx`
     };
