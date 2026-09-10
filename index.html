@@ -1231,9 +1231,12 @@ async function createDraftMail(btnEl){
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
     const linkArea = document.getElementById('draftLinkArea');
-    if(draft.webLink){
-      if(mailWin) mailWin.location.href = draft.webLink;
-      if(linkArea) linkArea.innerHTML = `<div style="margin-top:8px;"><a class="btn btn-mail" href="${draft.webLink}" target="_blank">📨 メール作成画面をもう一度開く</a></div>`;
+    // webLinkは既定で「読み取り専用」画面(/mail/deeplink/read/…)になるため、
+    // 宛先・件名・送信ボタンが使える「編集」画面(/mail/deeplink/compose/…)に変換する
+    const composeLink = draft.webLink ? draft.webLink.replace('/mail/deeplink/read/', '/mail/deeplink/compose/') : null;
+    if(composeLink){
+      if(mailWin) mailWin.location.href = composeLink;
+      if(linkArea) linkArea.innerHTML = `<div style="margin-top:8px;"><a class="btn btn-mail" href="${composeLink}" target="_blank">📨 メール作成画面をもう一度開く</a></div>`;
     } else if(mailWin){
       mailWin.close();
     }
