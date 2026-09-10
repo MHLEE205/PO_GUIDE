@@ -620,8 +620,9 @@ const DV_URL       = 'https://orgde512c6f.crm7.dynamics.com';
 const DV_API       = DV_URL + '/api/data/v9.2';
 const REDIRECT_URI = location.href.split('?')[0].split('#')[0];
 const DV_SCOPE     = DV_URL + '/user_impersonation openid profile email offline_access';
-const GRAPH_SCOPE  = 'https://graph.microsoft.com/Files.ReadWrite.All https://graph.microsoft.com/Mail.Send offline_access';
-const AUTH_SCOPE   = DV_SCOPE + ' https://graph.microsoft.com/Files.ReadWrite.All https://graph.microsoft.com/Mail.Send';
+// TODO: Azure ADでMail.Send権限の追加＋管理者同意が完了したら、Mail.Sendをここに追加する
+const GRAPH_SCOPE  = 'https://graph.microsoft.com/Files.ReadWrite.All offline_access';
+const AUTH_SCOPE   = DV_SCOPE + ' https://graph.microsoft.com/Files.ReadWrite.All';
 const GRAPH_API    = 'https://graph.microsoft.com/v1.0';
 
 // フォーム自動取得用（船社別FAX/メールカードと同じ港フォルダ）
