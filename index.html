@@ -36,6 +36,8 @@
   #loginBtn{padding:8px 20px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;}
   #loginBtn:hover{opacity:.85;}
   #userInfo{font-size:12px;color:var(--accent2);}
+  #logoutBtn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:.15s;}
+  #logoutBtn:hover{background:var(--surface2);color:var(--text);}
 
   /* ── Container ── */
   .container{max-width:1100px;margin:0 auto;padding:28px 24px 80px;}
@@ -210,6 +212,7 @@
   <div class="header-right">
     <div class="header-badge">株式会社リニア 社内資料</div>
     <span id="userInfo" class="hidden"></span>
+    <button id="logoutBtn" class="hidden" onclick="doLogout()">ログアウト</button>
     <button id="loginBtn" onclick="startLogin()">🔐 ログイン</button>
   </div>
 </header>
@@ -639,6 +642,7 @@ const SESSION_TTL_MS = 24*60*60*1000;
 function saveSession(){ try{ localStorage.setItem(SESSION_KEY, JSON.stringify(S)); }catch(e){} }
 function loadSession(){ try{ const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; } }
 function clearSession(){ try{ localStorage.removeItem(SESSION_KEY); }catch(e){} }
+function doLogout(){ clearSession(); location.reload(); }
 
 // ── PKCE helpers ──
 function b64url(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''); }
@@ -716,6 +720,7 @@ async function restoreSession(){
 
 function setLoggedIn(){
   document.getElementById('loginBtn').classList.add('hidden');
+  document.getElementById('logoutBtn').classList.remove('hidden');
   document.getElementById('loginHint').classList.add('hidden');
   const displayName = S.userEmail ? S.userEmail.split('@')[0] : (S.userName || '');
   document.getElementById('userInfo').textContent = '✅ ' + displayName;
