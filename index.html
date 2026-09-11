@@ -1314,17 +1314,18 @@ async function createDraftMail(btnEl){
     // 作成したPOをPC側にも保存（控え）
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
-    // ②webLinkのドメインをoffice.comに正規化して直接開く（office365.com→office.com）
+    // ②webLinkを開く（office365.com→office.com正規化 + Action=EditDraftで編集モード試行）
     const draftsUrl = 'https://outlook.office.com/mail/drafts';
-    const openUrl = draft.webLink
-      ? draft.webLink
-          .replace('https://outlook.office365.com/', 'https://outlook.office.com/')
-          .replace('/deeplink/read/', '/deeplink/compose/')
+    const baseUrl = draft.webLink
+      ? draft.webLink.replace('https://outlook.office365.com/', 'https://outlook.office.com/')
+      : null;
+    const openUrl = baseUrl
+      ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'Action=EditDraft'
       : draftsUrl;
     if(mailWin) mailWin.location.href = openUrl;
     const linkArea = document.getElementById('draftLinkArea');
     if(linkArea){
-      linkArea.innerHTML = `<div style="margin-top:8px;font-size:12px;color:var(--text2);">✅ 添付ファイル付きの下書きが開きました。内容を確認して送信してください。</div>
+      linkArea.innerHTML = `<div style="margin-top:8px;font-size:12px;color:var(--text2);">✅ 添付ファイル付きの下書きを開きました。<br>📌 送信ボタンが見当たらない場合は、右上の <strong>✎（鉛筆）アイコン</strong> をクリックしてください。</div>
           <div style="margin-top:6px;">
             <a class="btn btn-mail" href="${openUrl}" target="_blank">📝 もう一度開く</a>
             <a class="btn btn-fax" style="margin-left:6px;" href="${draftsUrl}" target="_blank">📁 下書きフォルダを開く</a>
