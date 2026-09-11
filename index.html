@@ -1314,13 +1314,11 @@ async function createDraftMail(btnEl){
     // 作成したPOをPC側にも保存（控え）
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
-    // ②draft.webLinkのItemIDを使いdeeplink/composeでコンポーズ画面を直接開く
+    // ②webLinkのドメインをoffice.comに正規化して直接開く（office365.com→office.com）
     const draftsUrl = 'https://outlook.office.com/mail/drafts';
-    let openUrl = draftsUrl;
-    try {
-      const itemId = draft.webLink ? new URL(draft.webLink).searchParams.get('ItemID') : null;
-      if(itemId) openUrl = `https://outlook.office.com/mail/deeplink/compose?ItemID=${encodeURIComponent(itemId)}&exvsurl=1`;
-    } catch(e) {}
+    const openUrl = draft.webLink
+      ? draft.webLink.replace('https://outlook.office365.com/', 'https://outlook.office.com/')
+      : draftsUrl;
     if(mailWin) mailWin.location.href = openUrl;
     const linkArea = document.getElementById('draftLinkArea');
     if(linkArea){
