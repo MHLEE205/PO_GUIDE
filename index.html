@@ -1420,21 +1420,18 @@ async function createDraftMail(btnEl){
     // YANGMING等：搬出先・搬入先記入済PDF（社内記録用）も同時にPCへ自動保存
     if(_pendingMail.extra) triggerDownload(_pendingMail.extra.bytes, _pendingMail.extra.filename, _pendingMail.extra.mimeType);
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
-    // ②webLinkを開く（office365.com→office.com正規化 + viewmodelをIComposeMessageItemに置換して送信可能な編集画面で開く）
-    // ※OWAが実際に認識するのは「IComposeMessageItem」（過去に試したEditMessageItem/Action=EditDraftはOWA未対応の値だった）
+    // ②webLinkを開く（office365.com→office.com正規化 + Action=EditDraftで編集モード試行）
     const draftsUrl = 'https://outlook.office.com/mail/drafts';
     const baseUrl = draft.webLink
       ? draft.webLink.replace('https://outlook.office365.com/', 'https://outlook.office.com/')
       : null;
     const openUrl = baseUrl
-      ? (/viewmodel=/i.test(baseUrl)
-          ? baseUrl.replace(/viewmodel=[^&]*/i, 'viewmodel=IComposeMessageItem')
-          : baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'viewmodel=IComposeMessageItem')
+      ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'Action=EditDraft'
       : draftsUrl;
     if(mailWin) mailWin.location.href = openUrl;
     const linkArea = document.getElementById('draftLinkArea');
     if(linkArea){
-      linkArea.innerHTML = `<div style="margin-top:8px;font-size:12px;color:var(--text2);">✅ 添付ファイル付きの下書きを送信可能な編集画面で開きました。<br>📌 万一、送信ボタンが見当たらない場合は、右上の <strong>✎（鉛筆）アイコン</strong> をクリックしてください。</div>
+      linkArea.innerHTML = `<div style="margin-top:8px;font-size:12px;color:var(--text2);">✅ 添付ファイル付きの下書きを開きました。<br>📌 送信ボタンが見当たらない場合は、右上の <strong>✎（鉛筆）アイコン</strong> をクリックしてください。</div>
           <div style="margin-top:6px;">
             <a class="btn btn-mail" href="${openUrl}" target="_blank">📝 もう一度開く</a>
             <a class="btn btn-fax" style="margin-left:6px;" href="${draftsUrl}" target="_blank">📁 下書きフォルダを開く</a>
