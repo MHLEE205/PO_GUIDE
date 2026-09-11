@@ -1314,14 +1314,20 @@ async function createDraftMail(btnEl){
     // 作成したPOをPC側にも保存（控え）
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
-    // ②Outlookの下書きフォルダを開く（添付付き下書きが一覧の先頭に表示される）
+    // ②draft.webLinkのItemIDを使いdeeplink/composeでコンポーズ画面を直接開く
     const draftsUrl = 'https://outlook.office.com/mail/drafts';
-    if(mailWin) mailWin.location.href = draftsUrl;
+    let openUrl = draftsUrl;
+    try {
+      const itemId = draft.webLink ? new URL(draft.webLink).searchParams.get('ItemID') : null;
+      if(itemId) openUrl = `https://outlook.office.com/mail/deeplink/compose?ItemID=${encodeURIComponent(itemId)}&exvsurl=1`;
+    } catch(e) {}
+    if(mailWin) mailWin.location.href = openUrl;
     const linkArea = document.getElementById('draftLinkArea');
     if(linkArea){
-      linkArea.innerHTML = `<div style="margin-top:8px;font-size:12px;color:var(--text2);">✅ 添付ファイル付きの下書きをOutlookに保存しました。<br>下書きフォルダの<strong>先頭の下書きをクリック</strong>して内容を確認し、送信してください。</div>
+      linkArea.innerHTML = `<div style="margin-top:8px;font-size:12px;color:var(--text2);">✅ 添付ファイル付きの下書きが開きました。内容を確認して送信してください。</div>
           <div style="margin-top:6px;">
-            <a class="btn btn-mail" href="${draftsUrl}" target="_blank">📁 Outlookの下書きフォルダを開く</a>
+            <a class="btn btn-mail" href="${openUrl}" target="_blank">📝 もう一度開く</a>
+            <a class="btn btn-fax" style="margin-left:6px;" href="${draftsUrl}" target="_blank">📁 下書きフォルダを開く</a>
           </div>`;
     }
     _pendingMail = null;
