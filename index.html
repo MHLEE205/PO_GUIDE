@@ -628,8 +628,10 @@ const GRAPH_API    = 'https://graph.microsoft.com/v1.0';
 // フォーム自動取得用（船社別FAX/メールカードと同じ港フォルダ）
 const OSAKA_FOLDER_URL = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX';
 const KOBE_FOLDER_URL  = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL';
+const PO_EXCEL_URL     = 'https://leenear.sharepoint.com/:x:/s/leenearsite1/IQDdu5bGWXY4TKbAM39456BPAdxzQ8J4jFlgJ4f4qVGh3tQ?e=P27WZK';
 
 let S = { accessToken: null, tokenExpiry: 0, refreshToken: null, graphToken: null, graphTokenExpiry: 0, userName: '', userEmail: '', sessionExpiry: 0 };
+let _poContacts = null; // PO EXCEL.xlsxから読み込んだ船社別連絡先キャッシュ
 
 // ── ログイン状態の永続化（24時間）──
 const SESSION_KEY = 'po_guide_session';
@@ -723,6 +725,7 @@ function setLoggedIn(){
   document.getElementById('bkgSearchBtn').disabled = false;
   document.getElementById('bkgInput').focus();
   setMiniFlow(2);
+  loadPoContacts().then(contacts=>refreshCardContacts(contacts)).catch(()=>{});
 }
 
 // ステップ案内（① ログイン → ⑤ 送信）の進捗表示を更新
@@ -1089,8 +1092,73 @@ async function fillInterasiaOsakaXlsx(bytes, ctx){
 // キー: `${port}_${carrierKey}` → { filler, mailTo, subjectPrefix }
 // メール件名はテンプレート内シート「件名指定」の書式（例：IAL-Booking No,）に実際のBooking Noを付加する
 const XLSX_FILLERS = {
-  'OSAKA_INTERASIA': { filler: fillInterasiaOsakaXlsx, mailTo: 'osaka_empty@kamigumi.co.jp', subjectPrefix: 'IAL-Booking No,' },
+  'OSAKA_INTERASIA': { filler: fillInterasiaOsakaXlsx, defKey: 'OSAKA_INTERASIA', mailTo: 'osaka_empty@kamigumi.co.jp', subjectPrefix: 'IAL-Booking No,' },
 };
+
+// PO EXCEL.xlsx の列インデックス変換（A→0, B→1, ...）
+function xlsxColIdx(col){ let n=0; for(const c of col) n=n*26+c.charCodeAt(0)-64; return n-1; }
+
+// xlsx(ArrayBuffer) → 行データ配列。共有文字列テーブルを参照してセル値を文字列で返す
+async function parseXlsxToRows(bytes){
+  const zip = await JSZip.loadAsync(bytes);
+  const ss = [];
+  const ssFile = zip.file('xl/sharedStrings.xml');
+  if(ssFile){
+    const xml = await ssFile.async('string');
+    for(const m of xml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g))
+      ss.push([...m[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
+  }
+  const shXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
+  const rows = [];
+  for(const rM of shXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)){
+    const cells = [];
+    for(const cM of rM[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)){
+      const idx = xlsxColIdx(cM[1]);
+      const vM  = cM[3].match(/<v>([^<]*)<\/v>/);
+      const val = vM ? (cM[2].includes('t="s"') ? (ss[+vM[1]]||'') : vM[1]) : '';
+      while(cells.length<=idx) cells.push('');
+      cells[idx] = val;
+    }
+    rows.push(cells);
+  }
+  return rows;
+}
+
+// PO EXCEL.xlsx を読み込み _poContacts に格納（PORT_船社キー → {method,to,cc,name}）
+async function loadPoContacts(){
+  if(_poContacts) return _poContacts;
+  try{
+    const shareId = encodeSharingUrl(PO_EXCEL_URL);
+    const item    = await graphGet(`shares/${shareId}/driveItem`);
+    const bytes   = await downloadFileBytes(item.parentReference.driveId, item.id);
+    const rows    = await parseXlsxToRows(bytes);
+    _poContacts   = {};
+    for(let i=1; i<rows.length; i++){
+      const [port,carrier,method,to,cc,name] = rows[i];
+      if(!port?.trim() || !carrier?.trim()) continue;
+      const key = `${port.trim().toUpperCase()}_${carrier.trim().toUpperCase().replace(/[\s\-]/g,'')}`;
+      _poContacts[key] = { method:method?.trim()||'', to:to?.trim()||'', cc:cc?.trim()||'', name:name?.trim()||'' };
+    }
+  }catch(e){
+    console.warn('PO連絡先Excel読み込み失敗:', e.message);
+    _poContacts = {};
+  }
+  return _poContacts;
+}
+
+// ログイン後にカードのmailtoリンクをExcel連絡先で上書き
+function refreshCardContacts(contacts){
+  document.querySelectorAll('.card[data-port][data-carrier-key]').forEach(card=>{
+    const port = (card.dataset.port||'').toUpperCase();
+    const ck   = (card.dataset.carrierKey||'').toUpperCase().replace(/[\s\-]/g,'');
+    const c    = contacts[`${port}_${ck}`];
+    if(!c || c.method!=='メール' || !c.to) return;
+    card.querySelectorAll('a[href^="mailto:"]').forEach(a=>{
+      a.href = `mailto:${c.to}`;
+      if(!a.classList.contains('btn')) a.textContent = c.to;
+    });
+  });
+}
 
 async function downloadFileBytes(driveId, itemId){
   const token = await getGraphToken();
@@ -1176,9 +1244,10 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
   try {
     const bytes  = await downloadFileBytes(file.driveId, file.id);
     const filled = await def.filler(bytes, lastBkgContext);
+    const contact = def.defKey ? ((_poContacts||{})[def.defKey]||{}) : {};
     _pendingMail = {
-      to: def.mailTo,
-      cc: 'rcp@leenearcorp.com',
+      to: contact.to || def.mailTo || '',
+      cc: contact.cc || 'rcp@leenearcorp.com',
       subject: `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
       body: `お世話になっております。\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
       bytes: filled,
@@ -1292,7 +1361,7 @@ async function createMailDraft(to, cc, subject, bodyText, attachmentBytes, attac
       subject,
       body: { contentType:'HTML', content: htmlBody },
       toRecipients: [{ emailAddress: { address: to } }],
-      ccRecipients: cc ? [{ emailAddress: { address: cc } }] : [],
+      ccRecipients: cc ? cc.split(',').map(a=>a.trim()).filter(Boolean).map(a=>({emailAddress:{address:a}})) : [],
       attachments: [{
         '@odata.type': '#microsoft.graph.fileAttachment',
         name: attachmentName,
