@@ -1406,6 +1406,19 @@ function buildComposeUrl(to, cc, subject, body){
   return `https://outlook.office.com/mail/deeplink/compose?${p.toString()}`;
 }
 
+// GraphのwebLinkはテナントによってURL形式が異なる（新UI: outlook.cloud.microsoft/mail/jsmvvmdeeplink/、
+// 旧UI: outlook.office365.com/owa/ 等）が、どちらも「ItemID」クエリパラメータ自体は共通のEWS形式のID。
+// このIDだけを取り出し、送信ボタン付きの編集画面が開くと確認されている
+// classicドメインの /mail/deeplink/compose/{id} 形式に組み直して開く
+function extractOwaItemId(webLink){
+  if(!webLink) return null;
+  try {
+    return new URL(webLink).searchParams.get('ItemID');
+  } catch(e) {
+    return null;
+  }
+}
+
 async function createDraftMail(btnEl){
   if(!_pendingMail) return;
   const origLabel = btnEl.textContent;
@@ -1420,14 +1433,14 @@ async function createDraftMail(btnEl){
     // YANGMING等：搬出先・搬入先記入済PDF（社内記録用）も同時にPCへ自動保存
     if(_pendingMail.extra) triggerDownload(_pendingMail.extra.bytes, _pendingMail.extra.filename, _pendingMail.extra.mimeType);
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
-    // ②webLinkを開く（office365.com→office.com正規化 + Action=EditDraftで編集モード試行）
+    // ②下書きを送信ボタン付きの編集画面で開く
+    // webLinkのテナント固有ドメイン(jsmvvmdeeplink等)は使わず、ItemIDだけ取り出してclassicの
+    // /mail/deeplink/compose/{id} 形式（Microsoftコミュニティで動作確認済み）を自前で組み立てる
     const draftsUrl = 'https://outlook.office.com/mail/drafts';
-    const baseUrl = draft.webLink
-      ? draft.webLink.replace('https://outlook.office365.com/', 'https://outlook.office.com/')
-      : null;
-    const openUrl = baseUrl
-      ? baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'Action=EditDraft'
-      : draftsUrl;
+    const itemId = extractOwaItemId(draft.webLink);
+    const openUrl = itemId
+      ? `https://outlook.office365.com/mail/deeplink/compose/${encodeURIComponent(itemId)}?ItemID=${encodeURIComponent(itemId)}&exvsurl=1`
+      : (draft.webLink || draftsUrl);
     if(mailWin) mailWin.location.href = openUrl;
     const linkArea = document.getElementById('draftLinkArea');
     if(linkArea){
