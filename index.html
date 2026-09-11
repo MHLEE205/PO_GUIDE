@@ -1314,24 +1314,15 @@ async function createDraftMail(btnEl){
     // 作成したPOをPC側にも保存（控え）
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
-    // ②添付付き下書きを直接開く（OWA URLのviewmodelをEditに変換して編集モードで開く）
-    const composeUrl = buildComposeUrl(_pendingMail.to, _pendingMail.cc, _pendingMail.subject, _pendingMail.body);
-    const draftEditUrl = draft.webLink
-      ? draft.webLink.replace('viewmodel=ReadMessageItem', 'viewmodel=EditMessageItem')
-      : null;
-    if(mailWin) mailWin.location.href = draftEditUrl || composeUrl;
+    // ②Outlookの下書きフォルダを開く（添付付き下書きが一覧の先頭に表示される）
+    const draftsUrl = 'https://outlook.office.com/mail/drafts';
+    if(mailWin) mailWin.location.href = draftsUrl;
     const linkArea = document.getElementById('draftLinkArea');
     if(linkArea){
-      linkArea.innerHTML = draftEditUrl
-        ? `<div style="margin-top:8px;font-size:12px;color:var(--text2);">✅ 添付ファイル付きの下書きが開きました。送信ボタンを押してください。<br>※読み取り専用で開いた場合は右上の✎（編集）アイコンをクリックしてから送信してください。</div>
-            <div style="margin-top:6px;">
-              <a class="btn btn-mail" href="${draftEditUrl}" target="_blank">📎 添付付き下書きをもう一度開く</a>
-              <a class="btn btn-fax" style="margin-left:6px;" href="${composeUrl}" target="_blank">📨 添付なし新規作成（代替）</a>
-            </div>`
-        : `<div style="margin-top:8px;font-size:12px;color:var(--text2);">⚠️ 開いた画面に添付ファイル（先ほどダウンロードされたExcel）を手動で添付してから送信してください。</div>
-            <div style="margin-top:6px;">
-              <a class="btn btn-mail" href="${composeUrl}" target="_blank">📨 メール作成画面をもう一度開く</a>
-            </div>`;
+      linkArea.innerHTML = `<div style="margin-top:8px;font-size:12px;color:var(--text2);">✅ 添付ファイル付きの下書きをOutlookに保存しました。<br>下書きフォルダの<strong>先頭の下書きをクリック</strong>して内容を確認し、送信してください。</div>
+          <div style="margin-top:6px;">
+            <a class="btn btn-mail" href="${draftsUrl}" target="_blank">📁 Outlookの下書きフォルダを開く</a>
+          </div>`;
     }
     _pendingMail = null;
     setMiniFlow(5);
