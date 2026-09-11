@@ -1416,6 +1416,9 @@ async function autoFillDirect(port, carrierKey, btnEl){
 // ── Excel自動入力 → 送信前プレビュー ──
 let _pendingMail = null;
 
+// メール本文末尾に付与するデフォルト署名
+const MAIL_SIGNATURE = `株式会社リニア (Leenear Corporation)\nE-mail: rcp@leenearcorp.com\nTel. +81-3-3528-9850  Fax. +81-3-3528-9851\n\n✦ Powered by LEENAI Automation System`;
+
 async function prepareXlsxMail(fileIndex, def, btnEl){
   const file = _foundFormFiles[fileIndex];
   const origLabel = btnEl.textContent;
@@ -1429,7 +1432,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
       to: contact.to || def.mailTo || '',
       cc: contact.cc || 'rcp@leenearcorp.com',
       subject: def.subject ? def.subject(lastBkgContext) : `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
-      body: `お世話になっております。\n\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\n\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
+      body: `お世話になっております。\n\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\n\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。\n\n\n${MAIL_SIGNATURE}`,
       bytes: filled,
       filename: `PO(${lastBkgContext.bkgNo}).xlsx`,
       extra
