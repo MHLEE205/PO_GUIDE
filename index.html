@@ -1317,7 +1317,9 @@ async function createDraftMail(btnEl){
     // ②webLinkのドメインをoffice.comに正規化して直接開く（office365.com→office.com）
     const draftsUrl = 'https://outlook.office.com/mail/drafts';
     const openUrl = draft.webLink
-      ? draft.webLink.replace('https://outlook.office365.com/', 'https://outlook.office.com/')
+      ? draft.webLink
+          .replace('https://outlook.office365.com/', 'https://outlook.office.com/')
+          .replace('/deeplink/read/', '/deeplink/compose/')
       : draftsUrl;
     if(mailWin) mailWin.location.href = openUrl;
     const linkArea = document.getElementById('draftLinkArea');
