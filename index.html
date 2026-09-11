@@ -1119,13 +1119,85 @@ async function fillYangmingOsakaXlsx(bytes, ctx){
   return zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
 }
 
-// キー: `${port}_${carrierKey}` → { filler, mailTo, subjectPrefix|subject }
+// YANGMING大阪フォームの「Sheet1」タブ（本船名→搬出先／搬入先の対応マスタ、A1:D12）を解析
+// 新しい本船名が追加された場合はこのシートに1行追加するだけで自動反映される
+async function parseYangmingTerminalTable(zip){
+  const ssFile = zip.file('xl/sharedStrings.xml');
+  const ss = [];
+  if(ssFile){
+    const xml = await ssFile.async('string');
+    for(const m of xml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g))
+      ss.push([...m[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
+  }
+  const shXml = await zip.file('xl/worksheets/sheet2.xml').async('string');
+  const table = {};
+  for(const rM of shXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)){
+    const cells = {};
+    for(const cM of rM[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)){
+      const vM = cM[3].match(/<v>([^<]*)<\/v>/);
+      if(!vM) continue;
+      cells[cM[1]] = cM[2].includes('t="s"') ? (ss[+vM[1]] || '') : vM[1];
+    }
+    if(cells.B) table[cells.B.trim().toUpperCase()] = { out: cells.C || '', in: cells.D || '' };
+  }
+  return table;
+}
+
+// 搬出先／搬入先はターミナル名（三井／辰巳ヤード／上組ヤード等）が日本語のため、
+// pdf-lib標準フォント（WinAnsi）で描画できるよう既知の名称のみ英語表記に変換する
+// （PDF記入セクションの他フォームと同じく、未対応文字は"?"に置換するフォールバックを維持）
+const YANGMING_TERMINAL_JA2EN = [
+  ['三井ターミナル', 'Mitsui Terminal'],
+  ['辰巳ヤード', 'Tatsumi Yard'],
+  ['上組ヤード', 'Kamigumi Yard'],
+  ['三井', 'Mitsui'],
+];
+function toAsciiTerminalText(text){
+  if(!text) return '';
+  let out = text;
+  for(const [ja, en] of YANGMING_TERMINAL_JA2EN) out = out.split(ja).join(en);
+  return out.replace(/[^\x00-\xFF]/g, '?');
+}
+
+// YANGMING用「搬出先・搬入先記入済PDF」（社内記録用、PO(BKG番号).pdfとして別途保存）を新規生成
+// メール添付Excel（ターミナル使用欄は空白）とは別に、本船名からSheet1マスタで搬出先/搬入先を引いて記録する
+async function generateYangmingRecordPdf(ctx, terminal){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([420, 300]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  page.drawText('YANGMING OSAKA - PICK UP ORDER RECORD', { x:30, y:270, size:13, font:bold, color:rgb(0,0,0) });
+  let y = 235;
+  const line = (label, value) => {
+    page.drawText(label, { x:30, y, size:11, font:bold, color:rgb(0,0,0) });
+    page.drawText(String(value || ''), { x:190, y, size:11, font, color:rgb(0,0,0) });
+    y -= 22;
+  };
+  line('BOOKING NO.', ctx.bkgNo);
+  line('VESSEL / VOY', `${ctx.vslName || ''}${ctx.voyNo ? '  VOY ' + ctx.voyNo : ''}`);
+  line('PORT OF DISCHARGE', ctx.pod);
+  line('PICK UP DATE', ctx.pickupDate || '');
+  line("40'HQ QTY", ctx.containerQty || '');
+  line('OUTBOUND POINT', toAsciiTerminalText(terminal.out));
+  line('INBOUND POINT', toAsciiTerminalText(terminal.in));
+  return pdfDoc.save();
+}
+
+// キー: `${port}_${carrierKey}` → { filler, mailTo, subjectPrefix|subject, extraFile? }
 // メール件名はテンプレート内シート「件名指定」の書式（例：IAL-Booking No,）に実際のBooking Noを付加する
 // subjectには件名を動的に組み立てる関数（ctx→string）を指定できる（subjectPrefixより優先）
+// extraFileはExcelとは別にローカルへ自動保存する追加ファイル（PDF等）を返す関数（bytes,ctx）→{bytes,filename,mimeType}
 const XLSX_FILLERS = {
   'OSAKA_INTERASIA': { filler: fillInterasiaOsakaXlsx, defKey: 'OSAKA_INTERASIA', mailTo: 'osaka_empty@kamigumi.co.jp', subjectPrefix: 'IAL-Booking No,' },
   'OSAKA_YANGMING':  { filler: fillYangmingOsakaXlsx,  defKey: 'OSAKA_YANGMING',  mailTo: 'export_osaka_c9@mitsui-koun.co.jp',
-    subject: ctx => `[ピックアップオーダー送付 1件 BKG NO.${ctx.bkgNo}] ${ctx.vslName || ''} ${mdDow(ctx.pickupDate)}~ PICK UP 希望` },
+    subject: ctx => `[ピックアップオーダー送付 1件 BKG NO.${ctx.bkgNo}] ${ctx.vslName || ''} ${mdDow(ctx.pickupDate)}~ PICK UP 希望`,
+    extraFile: async (bytes, ctx) => {
+      const zip = await JSZip.loadAsync(bytes);
+      const table = await parseYangmingTerminalTable(zip);
+      const terminal = table[(ctx.vslName || '').trim().toUpperCase()] || { out:'', in:'' };
+      return { bytes: await generateYangmingRecordPdf(ctx, terminal), filename: `PO(${ctx.bkgNo}).pdf`, mimeType: 'application/pdf' };
+    } },
 };
 
 // PO EXCEL.xlsx の列インデックス変換（A→0, B→1, ...）
@@ -1277,6 +1349,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
   try {
     const bytes  = await downloadFileBytes(file.driveId, file.id);
     const filled = await def.filler(bytes, lastBkgContext);
+    const extra  = def.extraFile ? await def.extraFile(bytes, lastBkgContext) : null;
     const contact = def.defKey ? ((_poContacts||{})[def.defKey]||{}) : {};
     _pendingMail = {
       to: contact.to || def.mailTo || '',
@@ -1284,7 +1357,8 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
       subject: def.subject ? def.subject(lastBkgContext) : `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
       body: `お世話になっております。\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
       bytes: filled,
-      filename: `PO(${lastBkgContext.bkgNo}).xlsx`
+      filename: `PO(${lastBkgContext.bkgNo}).xlsx`,
+      extra
     };
     showMailPreview();
   } finally {
@@ -1303,6 +1377,7 @@ function showMailPreview(){
     <div class="card-row"><div class="card-key">件名</div><div class="card-val">${_pendingMail.subject}</div></div>
     <div class="card-row"><div class="card-key">本文</div><div class="card-val" style="white-space:pre-wrap;">${_pendingMail.body}</div></div>
     <div class="card-row"><div class="card-key">添付</div><div class="card-val">${_pendingMail.filename}</div></div>
+    ${_pendingMail.extra ? `<div class="card-row"><div class="card-key">社内記録</div><div class="card-val">${_pendingMail.extra.filename}（メール作成時にPCへ自動保存されます）</div></div>` : ''}
     <div style="margin-top:10px;">
       <button class="btn btn-fax" onclick="downloadPendingMailAttachment()">📥 添付を確認（ダウンロード）</button>
       <button class="btn btn-primary" style="background:var(--accent2);margin-left:6px;" onclick="createDraftMail(this)">📝 メール作成</button>
@@ -1315,6 +1390,7 @@ function showMailPreview(){
 function downloadPendingMailAttachment(){
   if(!_pendingMail) return;
   triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  if(_pendingMail.extra) triggerDownload(_pendingMail.extra.bytes, _pendingMail.extra.filename, _pendingMail.extra.mimeType);
 }
 
 function cancelPendingMail(){
@@ -1341,6 +1417,8 @@ async function createDraftMail(btnEl){
     const draft = await createMailDraft(_pendingMail.to, _pendingMail.cc, _pendingMail.subject, _pendingMail.body, _pendingMail.bytes, _pendingMail.filename);
     // 作成したPOをPC側にも保存（控え）
     triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    // YANGMING等：搬出先・搬入先記入済PDF（社内記録用）も同時にPCへ自動保存
+    if(_pendingMail.extra) triggerDownload(_pendingMail.extra.bytes, _pendingMail.extra.filename, _pendingMail.extra.mimeType);
     btnEl.textContent = '✅ メール作成完了（PCにも保存済み）';
     // ②webLinkを開く（office365.com→office.com正規化 + Action=EditDraftで編集モード試行）
     const draftsUrl = 'https://outlook.office.com/mail/drafts';
