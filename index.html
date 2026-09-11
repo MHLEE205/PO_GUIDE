@@ -1429,7 +1429,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
       to: contact.to || def.mailTo || '',
       cc: contact.cc || 'rcp@leenearcorp.com',
       subject: def.subject ? def.subject(lastBkgContext) : `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
-      body: `お世話になっております。\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
+      body: `お世話になっております。\n\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\n\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
       bytes: filled,
       filename: `PO(${lastBkgContext.bkgNo}).xlsx`,
       extra
