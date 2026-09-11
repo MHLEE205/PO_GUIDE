@@ -832,6 +832,14 @@ function mdParts(dateStr){
   return { month:String(d.getMonth()+1), day:String(d.getDate()) };
 }
 
+// 日付文字列(YYYY-MM-DD) → "M/D(曜)"（YANGMINGメール件名用）
+function mdDow(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr);
+  const dow = ['日','月','火','水','木','金','土'][d.getDay()];
+  return `${d.getMonth()+1}/${d.getDate()}(${dow})`;
+}
+
 // 釜山T/S経由の韓国向け主要港は仕向地に「, KOREA(PUSAN T/S)」を自動付加
 const PUSAN_TS_CITIES = ['KWANGYANG','PUSAN','INCHEON'];
 function applyPusanTs(pod){
@@ -1094,10 +1102,30 @@ async function fillInterasiaOsakaXlsx(bytes, ctx){
   return zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
 }
 
-// キー: `${port}_${carrierKey}` → { filler, mailTo, subjectPrefix }
+// YANGMING大阪フォーム（EXport Pick-up Orderシート）への自動入力
+// 対象セルは sample/OSAKA/YANGMING_OSAKA.xlsx（過去実績記入済）のxl/worksheets/sheet1.xmlを直接解析して特定
+async function fillYangmingOsakaXlsx(bytes, ctx){
+  const zip = await JSZip.loadAsync(bytes);
+  const sheetPath = 'xl/worksheets/sheet1.xml'; // =「EXport Pick-up Order」シート（workbook.xmlのrId1）
+  let xml = await zip.file(sheetPath).async('string');
+  xml = xlsxSetStringCell(xml, 'F21', ctx.vslName || '');   // VESSEL
+  xml = xlsxSetStringCell(xml, 'R21', ctx.voyNo   || '');   // VOY NO.
+  xml = xlsxSetStringCell(xml, 'M20', ctx.bkgNo   || '');   // BOOKING NO.
+  xml = xlsxSetStringCell(xml, 'F24', ctx.pod     || '');   // PORT of DISCHARGE
+  xml = xlsxSetStringCell(xml, 'S24', ctx.pod     || '');   // FINAL DESTINATION
+  if(ctx.pickupDate)    xml = xlsxSetNumberCell(xml, 'B30', toExcelSerial(ctx.pickupDate));  // PICK日
+  if(ctx.containerQty)  xml = xlsxSetNumberCell(xml, 'G34', Number(ctx.containerQty));       // 40'HQ(DRY)本数
+  zip.file(sheetPath, xml);
+  return zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
+}
+
+// キー: `${port}_${carrierKey}` → { filler, mailTo, subjectPrefix|subject }
 // メール件名はテンプレート内シート「件名指定」の書式（例：IAL-Booking No,）に実際のBooking Noを付加する
+// subjectには件名を動的に組み立てる関数（ctx→string）を指定できる（subjectPrefixより優先）
 const XLSX_FILLERS = {
   'OSAKA_INTERASIA': { filler: fillInterasiaOsakaXlsx, defKey: 'OSAKA_INTERASIA', mailTo: 'osaka_empty@kamigumi.co.jp', subjectPrefix: 'IAL-Booking No,' },
+  'OSAKA_YANGMING':  { filler: fillYangmingOsakaXlsx,  defKey: 'OSAKA_YANGMING',  mailTo: 'export_osaka_c9@mitsui-koun.co.jp',
+    subject: ctx => `[ピックアップオーダー送付 1件 BKG NO.${ctx.bkgNo}] ${ctx.vslName || ''} ${mdDow(ctx.pickupDate)}~ PICK UP 希望` },
 };
 
 // PO EXCEL.xlsx の列インデックス変換（A→0, B→1, ...）
@@ -1253,7 +1281,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
     _pendingMail = {
       to: contact.to || def.mailTo || '',
       cc: contact.cc || 'rcp@leenearcorp.com',
-      subject: `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
+      subject: def.subject ? def.subject(lastBkgContext) : `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
       body: `お世話になっております。\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。`,
       bytes: filled,
       filename: `PO(${lastBkgContext.bkgNo}).xlsx`
