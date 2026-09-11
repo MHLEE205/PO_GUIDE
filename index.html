@@ -6,6 +6,7 @@
 <title>P/O申請ガイド — LEENAI</title>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   :root {
     --bg:          #0f1117;
@@ -1143,45 +1144,118 @@ async function parseYangmingTerminalTable(zip){
   return table;
 }
 
-// 搬出先／搬入先はターミナル名（三井／辰巳ヤード／上組ヤード等）が日本語のため、
-// pdf-lib標準フォント（WinAnsi）で描画できるよう既知の名称のみ英語表記に変換する
-// （PDF記入セクションの他フォームと同じく、未対応文字は"?"に置換するフォールバックを維持）
-const YANGMING_TERMINAL_JA2EN = [
-  ['三井ターミナル', 'Mitsui Terminal'],
-  ['辰巳ヤード', 'Tatsumi Yard'],
-  ['上組ヤード', 'Kamigumi Yard'],
-  ['三井', 'Mitsui'],
-];
-function toAsciiTerminalText(text){
-  if(!text) return '';
-  let out = text;
-  for(const [ja, en] of YANGMING_TERMINAL_JA2EN) out = out.split(ja).join(en);
-  return out.replace(/[^\x00-\xFF]/g, '?');
+// HTML(DOM)をhtml2canvasでラスタライズしPNG化 → pdf-libで1ページPDFに埋め込む
+// 日本語はpdf-lib標準フォントでは描画できないため、ブラウザ自身のフォント描画に任せてから画像として取り込む
+async function renderHtmlToPdf(html, widthPx){
+  const container = document.createElement('div');
+  container.style.cssText = `position:fixed;left:-99999px;top:0;width:${widthPx}px;background:#fff;`;
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  try {
+    const canvas = await html2canvas(container, { scale:2, backgroundColor:'#ffffff' });
+    const pngBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), c => c.charCodeAt(0));
+    const { PDFDocument } = PDFLib;
+    const pdfDoc = await PDFDocument.create();
+    const png = await pdfDoc.embedPng(pngBytes);
+    const pageWidth = 595.28; // A4横幅(pt)
+    const pageHeight = pageWidth * (canvas.height / canvas.width);
+    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    page.drawImage(png, { x:0, y:0, width:pageWidth, height:pageHeight });
+    return pdfDoc.save();
+  } finally {
+    container.remove();
+  }
+}
+
+// YANGMING大阪フォーム（EXport Pick-up Orderシート）を模したHTML。sample/OSAKA/PO(I272242816).pdf
+// （過去実績のExcel印刷結果）を基にレイアウトを再現し、*ターミナル使用欄*に搬出・搬入先を追記する
+function buildYangmingFormHtml(ctx, terminal){
+  const esc = (s) => escapeXmlText(s == null ? '' : s);
+  const dateLabel = ctx.pickupDate ? mdDow(ctx.pickupDate) : '';
+  const qty = esc(ctx.containerQty || '');
+  const td = 'border:1px solid #000;padding:4px 8px;box-sizing:border-box;';
+  return `<div style="width:800px;padding:20px 26px;background:#fff;color:#111;font-family:'Yu Gothic','Meiryo',sans-serif;font-size:13px;line-height:1.4;box-sizing:border-box;">
+    <div style="text-align:right;font-size:10px;color:#333;">NANKO C9 MITSUI EMPTY PICK UP ORDER</div>
+    <div style="border:2.5px solid #000;padding:10px 14px;margin:4px 0 10px;box-sizing:border-box;">
+      <div style="font-size:19px;font-weight:700;">三井倉庫港運　輸出 空コンテナ EXPO PICK UP ORDER</div>
+    </div>
+    <table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-bottom:6px;">
+      <tr><td style="${td}width:34px;">TO:</td><td style="${td}font-weight:700;white-space:nowrap;">三井倉庫港運 （株）</td><td style="${td}width:150px;">TEL：06-6613-3879</td><td style="${td}">ヤンミン以外のSOC VAN　下記へメールのみ</td></tr>
+      <tr><td style="${td}"></td><td style="${td}font-weight:700;">南港 C-9ターミナル</td><td style="${td}">FAX：06-6613-6681</td><td style="${td}">inventory_osaka_c9@mitsui-koun.co.jp</td></tr>
+      <tr><td style="${td}"></td><td style="${td}">RCL：c9-planner@mitsui-koun.co.jp</td><td style="${td}" colspan="2">YML：export_osaka_c9@mitsui-koun.co.jp　へ</td></tr>
+    </table>
+    <table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-bottom:8px;">
+      <tr><td style="${td}width:34px;">FM:</td><td style="${td}width:90px;">貴社名:</td><td style="${td}font-weight:700;width:170px;">株式会社リニア</td><td style="${td}width:44px;">TEL：</td><td style="${td}font-weight:700;">03-3528-9850</td></tr>
+      <tr><td style="${td}"></td><td style="${td}">御担当者名:</td><td style="${td}font-weight:700;">朱(ジュ)</td><td style="${td}">FAX：</td><td style="${td}font-weight:700;">03-3528-9851</td></tr>
+      <tr><td style="${td}"></td><td style="${td}">E-MAIL:</td><td style="${td}font-weight:700;" colspan="3">rcp@leenearcorp.com</td></tr>
+    </table>
+    <div style="border:1px solid #000;padding:6px 10px;font-size:11px;margin-bottom:10px;box-sizing:border-box;">
+      ※ ACL ドックレシート作成者が同じ場合は、同上、違う場合は下記へ必ずご記入下さい ※<br>
+      通関業者名：<b>同上</b>　　　TEL：<br>
+      御担当者名：　　　　　FAX：<br>
+      E-MAIL：　　　　　　　携帯：
+    </div>
+    <table style="width:100%;table-layout:fixed;border:2px solid #000;border-collapse:collapse;font-size:13px;margin-bottom:8px;">
+      <tr><td style="${td}width:110px;">新規</td><td style="${td}width:150px;">BOOKING NO.</td><td style="${td}font-weight:700;">${esc(ctx.bkgNo)}</td></tr>
+      <tr><td style="${td}">VESSEL</td><td style="${td}font-weight:700;">${esc(ctx.vslName)}</td><td style="${td}">VOY NO.　<b>${esc(ctx.voyNo)}</b></td></tr>
+      <tr><td style="${td}">SHIPPER</td><td style="${td}font-weight:700;" colspan="2">LEENEAR CORPORATION</td></tr>
+      <tr><td style="${td}">品名</td><td style="${td}font-weight:700;">WASTE PAPER</td><td style="${td}">荷姿　<b>BALES</b></td></tr>
+      <tr><td style="${td}">PORT of DISCHARGE</td><td style="${td}font-weight:700;">${esc(ctx.pod)}</td><td style="${td}">FINAL DESTINATION</td></tr>
+    </table>
+    <div style="font-size:12px;font-weight:700;margin-bottom:4px;">※該当欄に必要本数を記入して下さい。</div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;box-sizing:border-box;">
+      <table style="table-layout:fixed;width:100%;min-width:0;border-collapse:collapse;font-size:12px;flex:1.3;">
+        <tr><td style="${td}background:#f2f2f2;">PICK日</td><td style="${td}background:#f2f2f2;">SIZE</td><td style="${td}background:#f2f2f2;">DRY</td><td style="${td}background:#f2f2f2;">REEFER</td><td style="${td}background:#f2f2f2;">FLAT</td><td style="${td}background:#f2f2f2;">OPEN TOP</td></tr>
+        <tr><td style="${td}font-weight:700;color:#c00;" rowspan="3">${esc(dateLabel)}</td><td style="${td}">20'</td><td style="${td}"></td><td style="${td}"></td><td style="${td}"></td><td style="${td}"></td></tr>
+        <tr><td style="${td}">40'</td><td style="${td}"></td><td style="${td}"></td><td style="${td}"></td><td style="${td}"></td></tr>
+        <tr><td style="${td}">40'HQ</td><td style="${td}font-weight:700;">${qty}</td><td style="${td}"></td><td style="${td}"></td><td style="${td}"></td></tr>
+      </table>
+      <table style="table-layout:fixed;width:100%;min-width:0;border-collapse:collapse;font-size:12px;flex:1;">
+        <tr><td style="${td}background:#f2f2f2;">VAN詰場所</td><td style="${td}background:#f2f2f2;">運送会社</td></tr>
+        <tr><td style="${td}padding:18px 8px;">株式会社リニア<br>(大阪市)</td><td style="${td}padding:18px 8px;">ペガサス物流</td></tr>
+        <tr><td style="${td}background:#f2f2f2;" colspan="2">REMARK</td></tr>
+        <tr><td style="${td}padding:14px 8px;" colspan="2"></td></tr>
+      </table>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;box-sizing:border-box;">
+      <table style="table-layout:fixed;width:100%;min-width:0;border-collapse:collapse;font-size:12px;flex:1.4;">
+        <tr><td style="${td}background:#fbe1de;font-weight:700;" colspan="2">危険品</td></tr>
+        <tr><td style="${td}background:#fbe1de;width:45%;">IMCO</td><td style="${td}background:#fbe1de;">UN NO.</td></tr>
+        <tr><td style="${td}padding:10px 8px;background:#fdf1f0;"></td><td style="${td}padding:10px 8px;background:#fdf1f0;"></td></tr>
+        <tr><td style="${td}padding:10px 8px;background:#fdf1f0;"></td><td style="${td}padding:10px 8px;background:#fdf1f0;"></td></tr>
+      </table>
+      <table style="table-layout:fixed;width:100%;min-width:0;border-collapse:collapse;font-size:12px;flex:1;">
+        <tr><td style="${td}background:#dbeaf7;font-weight:700;" colspan="2">REEFER</td></tr>
+        <tr><td style="${td}background:#e9f2fa;">AS DRY</td><td style="${td}background:#e9f2fa;"></td></tr>
+        <tr><td style="${td}background:#e9f2fa;">設定温度</td><td style="${td}background:#e9f2fa;">℃</td></tr>
+        <tr><td style="${td}background:#e9f2fa;">VENT</td><td style="${td}background:#e9f2fa;">%</td></tr>
+        <tr><td style="${td}background:#e9f2fa;">PRECOOL</td><td style="${td}background:#e9f2fa;"></td></tr>
+      </table>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px;box-sizing:border-box;">
+      <table style="table-layout:fixed;width:100%;min-width:0;border-collapse:collapse;font-size:12px;flex:1.4;">
+        <tr><td style="${td}font-weight:700;width:45%;">コンテナ搬入先選択</td><td style="${td}">大阪</td></tr>
+      </table>
+      <table style="table-layout:fixed;width:100%;min-width:0;border-collapse:collapse;font-size:12px;flex:1;">
+        <tr><td style="${td}background:#dff2df;font-weight:700;" colspan="2">FLAT RACK / OPEN TOP</td></tr>
+        <tr><td style="${td}background:#edf7ed;">OVER HIGH</td><td style="${td}background:#edf7ed;">CM</td></tr>
+        <tr><td style="${td}background:#edf7ed;">OVER WIDE(L)/(R)</td><td style="${td}background:#edf7ed;">CM</td></tr>
+        <tr><td style="${td}background:#edf7ed;">シャーシ</td><td style="${td}background:#edf7ed;"></td></tr>
+      </table>
+    </div>
+    <div style="border:2px solid #000;padding:8px 12px;font-size:13px;">
+      <div style="font-weight:700;">*ターミナル使用欄*</div>
+      <div style="margin-top:8px;">搬出：${esc(terminal.out || '未登録（Sheet1に本船名を追加してください）')}</div>
+      <div>搬入：${esc(terminal.in || '未登録（Sheet1に本船名を追加してください）')}</div>
+    </div>
+  </div>`;
 }
 
 // YANGMING用「搬出先・搬入先記入済PDF」（社内記録用、PO(BKG番号).pdfとして別途保存）を新規生成
 // メール添付Excel（ターミナル使用欄は空白）とは別に、本船名からSheet1マスタで搬出先/搬入先を引いて記録する
 async function generateYangmingRecordPdf(ctx, terminal){
-  const { PDFDocument, StandardFonts, rgb } = PDFLib;
-  const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([420, 300]);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  page.drawText('YANGMING OSAKA - PICK UP ORDER RECORD', { x:30, y:270, size:13, font:bold, color:rgb(0,0,0) });
-  let y = 235;
-  const line = (label, value) => {
-    page.drawText(label, { x:30, y, size:11, font:bold, color:rgb(0,0,0) });
-    page.drawText(String(value || ''), { x:190, y, size:11, font, color:rgb(0,0,0) });
-    y -= 22;
-  };
-  line('BOOKING NO.', ctx.bkgNo);
-  line('VESSEL / VOY', `${ctx.vslName || ''}${ctx.voyNo ? '  VOY ' + ctx.voyNo : ''}`);
-  line('PORT OF DISCHARGE', ctx.pod);
-  line('PICK UP DATE', ctx.pickupDate || '');
-  line("40'HQ QTY", ctx.containerQty || '');
-  line('OUTBOUND POINT', toAsciiTerminalText(terminal.out));
-  line('INBOUND POINT', toAsciiTerminalText(terminal.in));
-  return pdfDoc.save();
+  const html = buildYangmingFormHtml(ctx, terminal);
+  return renderHtmlToPdf(html, 800);
 }
 
 // キー: `${port}_${carrierKey}` → { filler, mailTo, subjectPrefix|subject, extraFile? }
