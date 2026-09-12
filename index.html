@@ -643,8 +643,8 @@
     </div>
     <div class="collapsible-body">
       <table class="ref-table" style="margin-top:10px;">
-        <tr><th>PORT</th><th>船社</th><th>申請方法</th><th>宛先</th><th>宛先名</th></tr>
-        <tr><td>OSAKA</td><td>新規船社名</td><td>FAX or メール</td><td>FAX番号 or メールアドレス</td><td>会社名</td></tr>
+        <tr><th>PORT</th><th>船社</th><th>申請方法</th><th>宛先1</th><th>宛先2</th><th>宛先名</th></tr>
+        <tr><td>OSAKA</td><td>新規船社名</td><td>FAX or メール</td><td>FAX番号 or メールアドレス</td><td>2件目のFAX番号 or CCメール（無ければ空白）</td><td>会社名</td></tr>
       </table>
     </div>
   </div>
@@ -1381,7 +1381,9 @@ async function parseXlsxToRows(bytes){
   return rows;
 }
 
-// PO EXCEL.xlsx を読み込み _poContacts に格納（PORT_船社キー → {method,to,cc,name}）
+// PO EXCEL.xlsx を読み込み _poContacts に格納（PORT_船社キー → {method,to,to2,cc,name}）
+// 列構成: A:PORT B:船社 C:申請方法 D:宛先1 E:宛先2 F:宛先名
+// 宛先2は、メールの場合はCC、FAXの場合は2件目のFAX番号として使う
 async function loadPoContacts(){
   if(_poContacts) return _poContacts;
   try{
@@ -1391,10 +1393,11 @@ async function loadPoContacts(){
     const rows    = await parseXlsxToRows(bytes);
     _poContacts   = {};
     for(let i=1; i<rows.length; i++){
-      const [port,carrier,method,to,cc,name] = rows[i];
+      const [port,carrier,method,to,to2,name] = rows[i];
       if(!port?.trim() || !carrier?.trim()) continue;
       const key = `${port.trim().toUpperCase()}_${carrier.trim().toUpperCase().replace(/[\s\-]/g,'')}`;
-      _poContacts[key] = { method:method?.trim()||'', to:to?.trim()||'', cc:cc?.trim()||'', name:name?.trim()||'' };
+      const to2Trim = to2?.trim()||'';
+      _poContacts[key] = { method:method?.trim()||'', to:to?.trim()||'', to2:to2Trim, cc:to2Trim, name:name?.trim()||'' };
     }
   }catch(e){
     console.warn('PO連絡先Excel読み込み失敗:', e.message);
@@ -1424,8 +1427,9 @@ function refreshCardContacts(contacts){
     const faxNoRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX No.'));
     const faxToRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX先'));
     if(faxNoRow && c.to){
+      const faxNos = [c.to, c.to2].filter(Boolean);
       const val = faxNoRow.querySelector('.card-val');
-      if(val) val.innerHTML = `<strong style="color:var(--text)">${escapeXmlText(c.to)}</strong>`;
+      if(val) val.innerHTML = `<strong style="color:var(--text)">${escapeXmlText(faxNos.join(' / '))}</strong>`;
     }
     if(c.name){
       if(faxToRow){
