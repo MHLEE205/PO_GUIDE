@@ -901,6 +901,7 @@ async function findCarrierFiles(portFolderUrl, carrierKey){
 // 直近のBKG検索結果（PDF自動入力に使用）
 let lastBkgContext = null;
 let _foundFormFiles = [];
+let _lastFilledPdf = null; // FAX印刷用：自動入力済みPDFの直近1件
 
 // 日付文字列(YYYY-MM-DD) → {month, day}
 function mdParts(dateStr){
@@ -1444,7 +1445,10 @@ async function autoFillAndDownload(fileIndex, btnEl){
   try {
     const bytes  = await downloadFileBytes(file.driveId, file.id);
     const filled = await filler(bytes, lastBkgContext);
-    triggerDownload(filled, `PO(${lastBkgContext.bkgNo}).pdf`);
+    const filename = `PO(${lastBkgContext.bkgNo}).pdf`;
+    triggerDownload(filled, filename);
+    _lastFilledPdf = { bytes: filled, filename };
+    showFaxPrintButton();
     btnEl.textContent = '✅ ダウンロード完了';
     setMiniFlow(5);
   } catch(e) {
@@ -1452,6 +1456,46 @@ async function autoFillAndDownload(fileIndex, btnEl){
     btnEl.innerHTML = origLabel;
     btnEl.disabled = false;
   }
+}
+
+// ダウンロード済みPDFを、ブラウザの印刷ダイアログ経由でそのままFAX送信できるようにする
+// （複合機のプリンタードライバー一覧からFAX用の項目を選んで送信する運用を想定）
+function showFaxPrintButton(){
+  const resultEl = document.getElementById('autoFetchResult');
+  if(!resultEl || !_lastFilledPdf) return;
+  let area = document.getElementById('faxPrintArea');
+  if(!area){
+    area = document.createElement('div');
+    area.id = 'faxPrintArea';
+    area.style.marginTop = '8px';
+    resultEl.appendChild(area);
+  }
+  area.innerHTML = `<button class="btn btn-fax" onclick="printPdfForFax()">📠 FAXで送信（印刷ダイアログを開く）</button>
+    <div style="font-size:11px;color:var(--text2);margin-top:4px;">印刷ダイアログの「プリンター」一覧から複合機のFAX項目を選んで送信してください。</div>`;
+}
+
+function printPdfForFax(){
+  if(!_lastFilledPdf){ alert('先に「P/O自動作成」でPDFを作成してください。'); return; }
+  printPdfBytes(_lastFilledPdf.bytes);
+}
+
+// PDF(ArrayBuffer)を非表示iframeで読み込み、そのiframeに対して印刷ダイアログを呼び出す
+function printPdfBytes(bytes){
+  const blob = new Blob([bytes], { type:'application/pdf' });
+  const url  = URL.createObjectURL(blob);
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  iframe.src = url;
+  document.body.appendChild(iframe);
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch(e) {
+      window.open(url, '_blank');
+    }
+    setTimeout(() => { iframe.remove(); URL.revokeObjectURL(url); }, 60000);
+  };
 }
 
 // 「フォームを自動取得」を経由せず、1クリックでSharePoint検索→自動入力→ダウンロード（またはメール準備）まで行う
