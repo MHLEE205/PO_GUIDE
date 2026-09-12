@@ -100,6 +100,7 @@
   #bkgPanel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 24px;margin-bottom:32px;}
   .panel-label{font-size:10px;font-weight:700;letter-spacing:3px;color:var(--accent);text-transform:uppercase;margin-bottom:10px;}
   .bkg-search-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .bkg-page-title{margin-left:auto;font-size:18px;font-weight:800;color:var(--text);letter-spacing:1px;}
   #bkgInput{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:8px;font-size:14px;font-family:var(--font-mono);outline:none;width:260px;letter-spacing:1px;transition:border-color .15s;}
   #bkgInput:focus{border-color:var(--accent);}
   #bkgInput::placeholder{color:var(--text3);font-family:var(--font-main);letter-spacing:0;}
@@ -279,10 +280,11 @@
   <div id="bkgPanel" class="locked">
     <div class="panel-label">🔍 COMPASS ブッキング検索</div>
     <div class="bkg-search-row">
-      <input id="bkgInput" type="text" placeholder="BKG No を入力  例：SNKO040260600193"
+      <input id="bkgInput" type="text" placeholder="BKG No または Invoice No を入力  例：SNKO040260600193"
              onkeydown="if(event.key==='Enter')searchBkg()" disabled>
       <button id="bkgSearchBtn" onclick="searchBkg()" disabled>検索</button>
       <span id="loginHint">🔒 まずログインしてください</span>
+      <span class="bkg-page-title">P/O 申請</span>
     </div>
     <div id="bkgResult"></div>
     <div class="mini-flow" id="miniFlow">
@@ -1525,8 +1527,8 @@ function showMailPreview(){
     <div class="edit-box-title">📧 メール内容の確認（作成後、そのままOutlookの画面が開きます。内容を確認して送信してください）</div>
     <div class="card-row"><div class="card-key">宛先</div><div class="card-val">${_pendingMail.to}</div></div>
     <div class="card-row"><div class="card-key">CC</div><div class="card-val">${_pendingMail.cc || '—'}</div></div>
-    <div class="card-row"><div class="card-key">件名</div><div class="card-val">${_pendingMail.subject}</div></div>
-    <div class="card-row"><div class="card-key">本文</div><div class="card-val" style="white-space:pre-wrap;">${_pendingMail.body}</div></div>
+    <div class="card-row"><div class="card-key">件名</div><div class="card-val" style="flex:1;"><input type="text" id="editMailSubject" value="${escapeXmlText(_pendingMail.subject)}" oninput="updatePendingMailField('subject', this.value)" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:12px;font-family:inherit;outline:none;"></div></div>
+    <div class="card-row"><div class="card-key">本文</div><div class="card-val" style="flex:1;"><textarea id="editMailBody" oninput="updatePendingMailField('body', this.value)" rows="7" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;font-family:inherit;outline:none;resize:vertical;">${escapeXmlText(_pendingMail.body)}</textarea></div></div>
     <div class="card-row"><div class="card-key">添付</div><div class="card-val">${_pendingMail.filename}</div></div>
     ${_pendingMail.extra ? `<div class="card-row"><div class="card-key">社内記録</div><div class="card-val">${_pendingMail.extra.filename}（メール作成時にPCへ自動保存されます）</div></div>` : ''}
     <div style="margin-top:10px;">
@@ -1542,6 +1544,11 @@ function downloadPendingMailAttachment(){
   if(!_pendingMail) return;
   triggerDownload(_pendingMail.bytes, _pendingMail.filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   if(_pendingMail.extra) triggerDownload(_pendingMail.extra.bytes, _pendingMail.extra.filename, _pendingMail.extra.mimeType);
+}
+
+function updatePendingMailField(field, value){
+  if(!_pendingMail) return;
+  _pendingMail[field] = value;
 }
 
 function cancelPendingMail(){
@@ -1651,23 +1658,25 @@ async function createMailDraft(to, cc, subject, bodyText, attachmentBytes, attac
 
 // ── BKG Search ──
 async function searchBkg(){
-  const bkgNo = document.getElementById('bkgInput').value.trim().toUpperCase();
-  if(!bkgNo){ alert('BKG No を入力してください'); return; }
+  const keyword = document.getElementById('bkgInput').value.trim().toUpperCase();
+  if(!keyword){ alert('BKG No または Invoice No を入力してください'); return; }
   clearMatch();
   showResult('<div class="loading-box"><div class="spinner"></div>COMPASSを照会中...</div>');
   try {
-    // ① BKG取得
+    // ① BKG取得（BKG No または Invoice No の一致で検索）
+    const kw = keyword.replace(/'/g,"''");
     const bkgData = await dvGet(
-      `cr49f_bookings?$filter=cr49f_booking_no eq '${bkgNo}'` +
+      `cr49f_bookings?$filter=cr49f_booking_no eq '${kw}' or cr49f_invoice_no eq '${kw}'` +
       `&$select=cr49f_bookingid,cr49f_booking_no,cr49f_invoice_no,cr49f_main_ship_name,` +
       `cr49f_cy_open,cr49f_cy_cut,cr49f_etd,crcf9_delivery_location,` +
       `_cr49f_carrier_id_value,_cr49f_region_japan_id_value,_cr49f_region_id_value`
     );
     if(!bkgData.value || bkgData.value.length === 0){
-      showResult(`<div class="error-box">「${bkgNo}」はCOMPASSに見つかりませんでした。BKG Noを確認してください。</div>`);
+      showResult(`<div class="error-box">「${keyword}」はCOMPASSに見つかりませんでした。BKG NoまたはInvoice Noを確認してください。</div>`);
       return;
     }
     const bkg = bkgData.value[0];
+    const bkgNo = bkg.cr49f_booking_no || keyword;
 
     // ② 船社・POL・POD・コンテナ本数合計 並列取得
     const carrierGuid = bkg['_cr49f_carrier_id_value'];
