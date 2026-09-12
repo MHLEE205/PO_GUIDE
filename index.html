@@ -1437,7 +1437,7 @@ async function autoFillAndDownload(fileIndex, btnEl){
   const key = fillerKey(lastBkgContext.port, lastBkgContext.carrierKey, file.name);
   const filler = PDF_FILLERS[key];
   if(!filler){ alert('この船社・フォームはまだ自動入力に対応していません。'); return; }
-  const origLabel = btnEl.textContent;
+  const origLabel = btnEl.innerHTML;
   btnEl.disabled = true; btnEl.textContent = '⏳ 処理中...';
   try {
     const bytes  = await downloadFileBytes(file.driveId, file.id);
@@ -1447,7 +1447,7 @@ async function autoFillAndDownload(fileIndex, btnEl){
     setMiniFlow(5);
   } catch(e) {
     alert('自動入力エラー: ' + e.message);
-    btnEl.textContent = origLabel;
+    btnEl.innerHTML = origLabel;
     btnEl.disabled = false;
   }
 }
@@ -1456,14 +1456,14 @@ async function autoFillAndDownload(fileIndex, btnEl){
 async function autoFillDirect(port, carrierKey, btnEl){
   const folderUrl = port === 'OSAKA' ? OSAKA_FOLDER_URL : port === 'KOBE' ? KOBE_FOLDER_URL : null;
   if(!folderUrl || !lastBkgContext){ alert('先にBKG検索を行ってください。'); return; }
-  const origLabel = btnEl.textContent;
+  const origLabel = btnEl.innerHTML;
   btnEl.disabled = true; btnEl.textContent = '⏳ 検索中...';
   try {
     const files = await findCarrierFiles(folderUrl, carrierKey);
     _foundFormFiles = files;
     if(files.length === 0){
       alert(`「${carrierKey}」に該当するフォームが見つかりませんでした。`);
-      btnEl.disabled = false; btnEl.textContent = origLabel;
+      btnEl.disabled = false; btnEl.innerHTML = origLabel;
       return;
     }
     // ① PDF自動入力対応を優先して探す
@@ -1480,10 +1480,10 @@ async function autoFillDirect(port, carrierKey, btnEl){
       return;
     }
     alert('この船社・フォームはまだ自動入力に対応していません。「フォーム(空白)」から手動でダウンロードしてください。');
-    btnEl.disabled = false; btnEl.textContent = origLabel;
+    btnEl.disabled = false; btnEl.innerHTML = origLabel;
   } catch(e) {
     alert('エラー: ' + e.message);
-    btnEl.disabled = false; btnEl.textContent = origLabel;
+    btnEl.disabled = false; btnEl.innerHTML = origLabel;
   }
 }
 
@@ -1495,7 +1495,7 @@ const MAIL_SIGNATURE = `株式会社リニア (Leenear Corporation)\nE-mail: rcp
 
 async function prepareXlsxMail(fileIndex, def, btnEl){
   const file = _foundFormFiles[fileIndex];
-  const origLabel = btnEl.textContent;
+  const origLabel = btnEl.innerHTML;
   btnEl.textContent = '⏳ Excel編集中...';
   try {
     const bytes  = await downloadFileBytes(file.driveId, file.id);
@@ -1513,7 +1513,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
     };
     showMailPreview();
   } finally {
-    btnEl.textContent = origLabel;
+    btnEl.innerHTML = origLabel;
     btnEl.disabled = false;
   }
 }
@@ -1756,7 +1756,7 @@ async function searchBkg(){
           </label>
         </div>
       </div>`;
-      html += `<button class="btn btn-primary" style="background:var(--accent2);margin:2px 8px 2px 0;padding:9px 18px;font-size:10px;font-weight:800;border-radius:6px;" onclick="autoFillDirect('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}', this)">📝 P/O自動作成(MAIL,FAX)</button>
+      html += `<button class="btn btn-primary" style="background:var(--accent2);margin:2px 8px 2px 0;padding:9px 18px;font-size:10px;font-weight:800;border-radius:6px;" onclick="autoFillDirect('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}', this)"><span style="font-size:11px;">📝</span> <span style="font-size:11.5px;">P/O自動作成(MAIL,FAX)</span></button>
       <button class="goto-btn" style="display:none;background:var(--accent);padding:6px 13px;font-size:12px;font-weight:600;" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォーム(空白)</button>
       <button class="goto-btn" style="display:none;background:var(--surface2);color:var(--text2);margin-left:8px;" onclick="scrollToCard('${matchedCards[0]}')">🔎 詳細カードを見る</button>
       <div id="autoFetchResult" style="margin-top:10px;"></div>`;
