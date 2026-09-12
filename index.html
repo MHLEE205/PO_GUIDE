@@ -1405,7 +1405,7 @@ function refreshCardContacts(contacts){
     const port = (card.dataset.port||'').toUpperCase();
     const ck   = (card.dataset.carrierKey||'').toUpperCase().replace(/[\s\-]/g,'');
     const c    = contacts[`${port}_${ck}`];
-    if(!c || c.method!=='メール' || !c.to) return;
+    if(!c || !c.to) return;
     card.querySelectorAll('a[href^="mailto:"]').forEach(a=>{
       a.href = `mailto:${c.to}`;
       if(!a.classList.contains('btn')) a.textContent = c.to;
