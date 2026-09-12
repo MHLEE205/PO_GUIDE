@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>P/O申請ガイド — LEENAI</title>
+<script>(function(){try{if(localStorage.getItem('po_guide_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
 <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -24,6 +25,56 @@
     --mail-border: #2a7a5a;
     --font-main:   'Segoe UI','Noto Sans JP',sans-serif;
     --font-mono:   'Consolas','Courier New',monospace;
+
+    --box-info-bg:      #12202e;
+    --box-info-border:  #1e4060;
+    --box-pickup-bg:    #0a1f12;
+    --box-error-bg:     #2a0f0f;
+    --box-edit-bg:      #141a2e;
+    --box-contact-mail-bg: #0c1a2e;
+    --box-contact-fax-bg:  #1a0f2e;
+    --box-code-bg:      #1a1f30;
+    --code-text:        #9ec8ff;
+    --box-tagwarn-bg:   #2e1f00;
+    --box-result-bg:    #10182e;
+    --box-matched-bg:   #0b1e14;
+    --box-badge-bg:     #1a2540;
+    --box-active-bg:    #162038;
+    --cb-mail-label:    #60a5fa;
+    --cb-fax-label:     #b08af0;
+  }
+
+  :root[data-theme="light"] {
+    --bg:          #f4f6fb;
+    --surface:     #ffffff;
+    --surface2:    #eef1f8;
+    --border:      #d8dde8;
+    --accent:      #2f5fd1;
+    --accent2:     #1f9d6e;
+    --warn:        #a15c00;
+    --danger:      #c23636;
+    --text:        #1a1f2e;
+    --text2:       #565f78;
+    --text3:       #8891a8;
+    --fax-border:  #8a6fd6;
+    --mail-border: #2a7a5a;
+
+    --box-info-bg:      #e7f0fb;
+    --box-info-border:  #b8d4f0;
+    --box-pickup-bg:    #e3f7ec;
+    --box-error-bg:     #fce8e8;
+    --box-edit-bg:      #eef1fb;
+    --box-contact-mail-bg: #e7f0fd;
+    --box-contact-fax-bg:  #f2e9fc;
+    --box-code-bg:      #eef0f6;
+    --code-text:        #1a56c4;
+    --box-tagwarn-bg:   #fdf0d5;
+    --box-result-bg:    #eef4fe;
+    --box-matched-bg:   #e3f7ec;
+    --box-badge-bg:     #eef1f8;
+    --box-active-bg:    #dce8fb;
+    --cb-mail-label:    #1a56c4;
+    --cb-fax-label:     #7a3fc9;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:14px;line-height:1.6;min-height:100vh;}
@@ -33,9 +84,11 @@
   .logo{font-size:11px;font-weight:700;letter-spacing:3px;color:var(--accent);text-transform:uppercase;}
   .header-title{font-size:15px;font-weight:600;color:var(--text);}
   .header-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
-  .header-badge{background:#1a2540;border:1px solid var(--border);color:var(--text2);font-size:11px;padding:3px 10px;border-radius:20px;}
+  .header-badge{background:var(--box-badge-bg);border:1px solid var(--border);color:var(--text2);font-size:11px;padding:3px 10px;border-radius:20px;}
   #loginBtn{padding:8px 20px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;}
   #loginBtn:hover{opacity:.85;}
+  #themeToggle{width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;}
+  #themeToggle:hover{border-color:var(--accent);}
   #userInfo{font-size:12px;color:var(--accent2);}
   #logoutBtn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:.15s;}
   #logoutBtn:hover{background:var(--surface2);color:var(--text);}
@@ -56,20 +109,20 @@
   #bkgResult{margin-top:16px;display:none;}
 
   /* ── Result card ── */
-  .result-card{background:#10182e;border:2px solid var(--accent);border-radius:12px;padding:18px 20px;}
+  .result-card{background:var(--box-result-bg);border:2px solid var(--accent);border-radius:12px;padding:18px 20px;}
   .result-title{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
   .result-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 20px;margin-bottom:16px;}
   .result-item{font-size:12px;}
   .result-key{color:var(--text3);font-size:11px;margin-bottom:2px;}
   .result-val{color:var(--text);font-weight:600;}
   .result-val.highlight-val{color:var(--accent2);font-size:14px;}
-  .pickup-date-box{background:#0a1f12;border:1px solid var(--accent2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .pickup-date-box{background:var(--box-pickup-bg);border:1px solid var(--accent2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:16px;}
   .pickup-date-box .pd-label{font-size:11px;color:var(--accent2);font-weight:700;letter-spacing:1px;}
   .pickup-date-box .pd-val{font-size:20px;font-weight:800;color:var(--accent2);}
   .pickup-date-box .pd-note{font-size:11px;color:var(--text2);}
   .goto-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:var(--accent);border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s;}
   .goto-btn:hover{opacity:.85;}
-  .error-box{background:#2a0f0f;border:1px solid var(--danger);border-radius:8px;padding:12px 16px;color:var(--danger);font-size:13px;}
+  .error-box{background:var(--box-error-bg);border:1px solid var(--danger);border-radius:8px;padding:12px 16px;color:var(--danger);font-size:13px;}
   .loading-box{color:var(--text2);font-size:13px;display:flex;align-items:center;gap:8px;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
@@ -87,10 +140,10 @@
   .flow-box .step-text{color:var(--text);font-weight:600;}
   .flow-box .step-sub{color:var(--text2);font-size:11px;margin-top:1px;}
   .flow-arrow{color:var(--text3);font-size:18px;padding:0 6px;}
-  .flow-step.hl .flow-box{background:#162038;border-color:var(--accent);}
+  .flow-step.hl .flow-box{background:var(--box-active-bg);border-color:var(--accent);}
 
   /* ── Info box ── */
-  .info-box{background:#12202e;border:1px solid #1e4060;border-left:3px solid var(--accent);border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:var(--text2);}
+  .info-box{background:var(--box-info-bg);border:1px solid var(--box-info-border);border-left:3px solid var(--accent);border-radius:8px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:var(--text2);}
   .info-box strong{color:var(--text);}
 
   /* ── OneDrive links ── */
@@ -111,7 +164,7 @@
   .card{background:var(--surface);border:2px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s, box-shadow .2s;}
   .card:hover{border-color:var(--accent);}
   .card.matched{border-color:var(--accent2);box-shadow:0 0 0 4px rgba(56,201,138,.12);}
-  .card.matched .card-header{background:#0b1e14;}
+  .card.matched .card-header{background:var(--box-matched-bg);}
   .card.dimmed{opacity:.35;}
   .card-header{display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--border);}
   .carrier-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;letter-spacing:-.5px;}
@@ -150,7 +203,7 @@
   /* ── Collapsible ── */
   .collapsible{background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
   .collapsible-header{display:flex;align-items:center;padding:13px 16px;cursor:pointer;user-select:none;gap:10px;}
-  .collapsible-header:hover{background:#1e2438;}
+  .collapsible-header:hover{background:var(--box-active-bg);}
   .collapsible-title{font-weight:600;font-size:13px;flex:1;}
   .collapsible-arrow{color:var(--text3);font-size:12px;transition:transform .2s;}
   .collapsible.open .collapsible-arrow{transform:rotate(90deg);}
@@ -170,12 +223,12 @@
   /* ── ミニフロー（ステップ案内） ── */
   .mini-flow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
   .mf-step{padding:4px 11px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);font-size:11px;color:var(--text3);font-weight:600;}
-  .mf-step.active{background:#162038;border-color:var(--accent);color:var(--text);}
+  .mf-step.active{background:var(--box-active-bg);border-color:var(--accent);color:var(--text);}
   .mf-step.done{background:#0a1f12;border-color:#1c5c37;color:#4ade80;}
   .mf-arrow{color:var(--text3);font-size:12px;}
 
   /* ── 送信前 確認・修正フォーム ── */
-  .edit-box{background:#141a2e;border:1px solid var(--accent);border-radius:8px;padding:14px 16px;margin-bottom:16px;}
+  .edit-box{background:var(--box-edit-bg);border:1px solid var(--accent);border-radius:8px;padding:14px 16px;margin-bottom:16px;}
   .edit-box-title{font-size:12px;color:var(--accent);font-weight:700;margin-bottom:10px;}
   .edit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;}
   .edit-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text2);font-weight:600;}
@@ -184,11 +237,11 @@
 
   /* ── 送信先 案内ボックス ── */
   .contact-box{border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-  .contact-box.mail{background:#0c1a2e;border:1px solid #2563eb;}
-  .contact-box.fax{background:#1a0f2e;border:1px solid var(--fax-border);}
+  .contact-box.mail{background:var(--box-contact-mail-bg);border:1px solid #2563eb;}
+  .contact-box.fax{background:var(--box-contact-fax-bg);border:1px solid var(--fax-border);}
   .contact-box .cb-label{font-size:11px;font-weight:700;letter-spacing:1px;}
-  .contact-box.mail .cb-label{color:#60a5fa;}
-  .contact-box.fax .cb-label{color:#b08af0;}
+  .contact-box.mail .cb-label{color:var(--cb-mail-label);}
+  .contact-box.fax .cb-label{color:var(--cb-fax-label);}
   .contact-box .cb-val{font-size:16px;font-weight:800;color:var(--text);}
   .contact-box .cb-val a{color:inherit;text-decoration:underline;}
 
@@ -196,8 +249,8 @@
   .ref-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
   .ref-table th{background:var(--surface);color:var(--text2);padding:7px 10px;text-align:left;border:1px solid var(--border);font-weight:600;}
   .ref-table td{padding:7px 10px;border:1px solid var(--border);color:var(--text2);vertical-align:top;}
-  code{font-family:var(--font-mono);background:#1a1f30;border:1px solid var(--border);padding:1px 5px;border-radius:4px;font-size:11px;color:#9ec8ff;}
-  .tag-warn{background:#2e1f00;border:1px solid #7a4f00;color:var(--warn);font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;}
+  code{font-family:var(--font-mono);background:var(--box-code-bg);border:1px solid var(--border);padding:1px 5px;border-radius:4px;font-size:11px;color:var(--code-text);}
+  .tag-warn{background:var(--box-tagwarn-bg);border:1px solid #7a4f00;color:var(--warn);font-size:11px;padding:2px 8px;border-radius:4px;font-weight:600;}
   .hidden{display:none!important;}
 
   footer{border-top:1px solid var(--border);padding:18px 24px;text-align:center;color:var(--text3);font-size:11px;letter-spacing:1px;}
@@ -212,6 +265,7 @@
   <div class="header-title">P/O申請ガイド</div>
   <div class="header-right">
     <div class="header-badge">株式会社リニア 社内資料</div>
+    <button id="themeToggle" onclick="toggleTheme()" title="ライト／ダークモード切替">🌙</button>
     <span id="userInfo" class="hidden"></span>
     <button id="logoutBtn" class="hidden" onclick="doLogout()">ログアウト</button>
     <button id="loginBtn" onclick="startLogin()">🔐 ログイン</button>
@@ -615,6 +669,26 @@
 <footer>✦ Powered by <span>LEENAI Automation System</span> &nbsp;|&nbsp; LEENEAR CORPORATION &nbsp;|&nbsp; 社内資料・社外秘</footer>
 
 <script>
+// ════════════════════════════════════════════
+// テーマ切替（ダーク／ライト）
+// ════════════════════════════════════════════
+const THEME_KEY = 'po_guide_theme';
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+  try{ localStorage.setItem(THEME_KEY, theme); }catch(e){}
+}
+function toggleTheme(){
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+(function initTheme(){
+  let saved = null;
+  try{ saved = localStorage.getItem(THEME_KEY); }catch(e){}
+  applyTheme(saved === 'light' ? 'light' : 'dark');
+})();
+
 // ════════════════════════════════════════════
 // COMPASS 定数 (CLAUDE-D365_Connect.md 準拠)
 // ════════════════════════════════════════════
