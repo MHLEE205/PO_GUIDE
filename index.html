@@ -1403,17 +1403,41 @@ async function loadPoContacts(){
   return _poContacts;
 }
 
-// ログイン後にカードのmailtoリンクをExcel連絡先で上書き
+// ログイン後にカードのmailtoリンク／FAX No.・FAX先をExcel連絡先で上書き
 function refreshCardContacts(contacts){
   document.querySelectorAll('.card[data-port][data-carrier-key]').forEach(card=>{
     const port = (card.dataset.port||'').toUpperCase();
     const ck   = (card.dataset.carrierKey||'').toUpperCase().replace(/[\s\-]/g,'');
     const c    = contacts[`${port}_${ck}`];
-    if(!c || !c.to) return;
-    card.querySelectorAll('a[href^="mailto:"]').forEach(a=>{
-      a.href = `mailto:${c.to}`;
-      if(!a.classList.contains('btn')) a.textContent = c.to;
-    });
+    if(!c) return;
+
+    // メールアドレス（mailtoリンク）の更新
+    if(c.to){
+      card.querySelectorAll('a[href^="mailto:"]').forEach(a=>{
+        a.href = `mailto:${c.to}`;
+        if(!a.classList.contains('btn')) a.textContent = c.to;
+      });
+    }
+
+    // FAX No. / FAX先 の更新（FAX先の行が無い場合は新規追加）
+    const rows = Array.from(card.querySelectorAll('.card-row'));
+    const faxNoRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX No.'));
+    const faxToRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX先'));
+    if(faxNoRow && c.to){
+      const val = faxNoRow.querySelector('.card-val');
+      if(val) val.innerHTML = `<strong style="color:var(--text)">${escapeXmlText(c.to)}</strong>`;
+    }
+    if(c.name){
+      if(faxToRow){
+        const val = faxToRow.querySelector('.card-val');
+        if(val) val.textContent = c.name;
+      } else if(faxNoRow){
+        const newRow = document.createElement('div');
+        newRow.className = 'card-row';
+        newRow.innerHTML = `<div class="card-key">FAX先</div><div class="card-val">${escapeXmlText(c.name)}</div>`;
+        faxNoRow.parentNode.insertBefore(newRow, faxNoRow);
+      }
+    }
   });
 }
 
@@ -1831,19 +1855,26 @@ async function searchBkg(){
 function contactBoxHtml(cardEl){
   const isMail = !!cardEl.querySelector('.method-badge.method-mail');
   const mailLink = cardEl.querySelector('a[href^="mailto:"]');
-  let faxNo = null;
+  let faxTo = null;
+  const faxNos = [];
   cardEl.querySelectorAll('.card-row').forEach(row=>{
     const k = row.querySelector('.card-key');
-    if(k && k.textContent.includes('FAX No.')) faxNo = row.querySelector('.card-val').textContent.trim();
+    if(!k) return;
+    if(k.textContent.includes('FAX先')) faxTo = row.querySelector('.card-val').textContent.trim();
+    if(k.textContent.includes('FAX No.')) faxNos.push(row.querySelector('.card-val').textContent.trim());
   });
   if(isMail && mailLink){
     return `<div class="contact-box mail">
       <div><div class="cb-label">📧 送信方法：メール</div><div class="cb-val"><a href="${mailLink.getAttribute('href')}">${mailLink.textContent.trim()}</a></div></div>
     </div>`;
   }
-  if(faxNo){
+  if(faxNos.length){
     return `<div class="contact-box fax">
-      <div><div class="cb-label">📠 送信方法：FAX</div><div class="cb-val">${faxNo}</div></div>
+      <div>
+        <div class="cb-label">📠 送信方法：FAX</div>
+        ${faxTo ? `<div class="cb-val" style="font-size:13px;font-weight:700;margin-bottom:2px;">${faxTo}</div>` : ''}
+        <div class="cb-val">${faxNos.join(' / ')}</div>
+      </div>
     </div>`;
   }
   return `<div class="contact-box fax"><div><div class="cb-label">ℹ️ 送信先</div><div class="cb-val" style="font-size:13px;">下の「詳細カードを見る」またはPO EXCEL.xlsxで確認してください</div></div></div>`;
