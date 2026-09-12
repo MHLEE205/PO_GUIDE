@@ -1470,7 +1470,7 @@ function showFaxPrintButton(){
     area.style.marginTop = '8px';
     resultEl.appendChild(area);
   }
-  area.innerHTML = `<button class="btn btn-fax" onclick="printPdfForFax()">📠 FAXで送信（印刷ダイアログを開く）</button>
+  area.innerHTML = `<button class="btn" style="background:var(--accent);color:#fff;padding:9px 18px;font-weight:800;border-radius:6px;" onclick="printPdfForFax()">📠 FAXで送信（印刷ダイアログを開く）</button>
     <div style="font-size:11px;color:var(--text2);margin-top:4px;">印刷ダイアログの「プリンター」一覧から複合機のFAX項目を選んで送信してください。</div>`;
 }
 
