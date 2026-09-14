@@ -51,6 +51,7 @@ PO_GUIDE/
 | 船社 | 方法 | 宛先 |
 |---|---|---|
 | CNC / CMA CGM | FAX | 078-306-3920 |
+| HEUNG-A | FAX | 078-306-3920 (上組PC-18、CNC神戸と同一様式) |
 | KMTC | FAX | 078-230-6108 (NX日本通運) |
 | SINOKOR | FAX | 078-304-1227 (住友倉庫KICT) |
 | NAMSUNG | FAX | PO EXCEL.xlsx参照 |
