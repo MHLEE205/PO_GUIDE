@@ -323,6 +323,7 @@
   <div class="od-row">
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX" target="_blank">📁 OSAKA フォルダ</a>
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📁 KOBE フォルダ</a>
+    <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgAtupNTndi1RLcew9gxFDGtAdPKL90bkRflvi2NgEkYb0o?e=4dEU4e" target="_blank">📁 TOKYO フォルダ</a>
     <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgAtupNTndi1RLcew9gxFDGtAdPKL90bkRflvi2NgEkYb0o?e=SOFjgp" target="_blank">📊 PO EXCEL.xlsx</a>
   </div>
 
@@ -336,6 +337,7 @@
       <button class="port-tab active" onclick="filterPort('ALL',this)">すべて</button>
       <button class="port-tab" onclick="filterPort('OSAKA',this)">大阪</button>
       <button class="port-tab" onclick="filterPort('KOBE',this)">神戸</button>
+      <button class="port-tab" onclick="filterPort('TOKYO',this)">東京</button>
     </div>
     <input class="search-input" type="text" id="searchInput" placeholder="船社名で検索…" oninput="filterSearch()">
     <button class="btn btn-secondary" id="clearMatchBtn" onclick="clearMatch()" style="display:none;">✕ ハイライト解除</button>
@@ -606,6 +608,41 @@
       </div>
     </div>
 
+    <!-- ═══ TOKYO ═══ -->
+    <div class="card" id="card-KMTC-TOKYO" data-port="TOKYO" data-carrier="kmtc" data-carrier-key="KMTC">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">KM</div>
+        <div><div class="carrier-name">KMTC</div><div class="carrier-sub">東京港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">東海運 品川コンテナセンター</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">03-3474-8477</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">KMTC TOKYO.pdf（東海運専用フォーム）</div></div>
+        <div class="card-row"><div class="card-key">自動入力</div><div class="card-val">本船名・VOY NO.・仕向地・BOOKING NO.・40'本数・搬出日（月/日）</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgAtupNTndi1RLcew9gxFDGtAdPKL90bkRflvi2NgEkYb0o?e=4dEU4e" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
+    <div class="card" id="card-YANGMING-TOKYO" data-port="TOKYO" data-carrier="yangming yang ming" data-carrier-key="YANGMING">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1a3a5c;color:#5bc4f0;">YM</div>
+        <div><div class="carrier-name">YANG MING</div><div class="carrier-sub">東京港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">日本通運 京浜港ターミナル支店</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">03-3528-0127</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">YANGMING TOKYO.pdf（YANG MING LINE専用フォーム）</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val">申込みはピックアップ前日PM3:00まで（特殊コンテナは2営業日前）</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgAtupNTndi1RLcew9gxFDGtAdPKL90bkRflvi2NgEkYb0o?e=4dEU4e" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
   </div><!-- /cards-grid -->
 
   <!-- ── Notes ── -->
@@ -647,7 +684,7 @@
     </div>
     <div class="collapsible-body">
       <ul class="note-list" style="margin-top:6px;">
-        <li>大阪 → <code>PICK UP/OSAKA/</code> &nbsp;神戸 → <code>PICK UP/KOBE/</code></li>
+        <li>大阪 → <code>PICK UP/OSAKA/</code> &nbsp;神戸 → <code>PICK UP/KOBE/</code> &nbsp;東京 → <code>PICK UP/TOKYO/</code></li>
         <li>ファイル名に船社名を含める　例：<code>DELTA OSAKA.pdf</code></li>
       </ul>
     </div>
@@ -673,7 +710,7 @@
     </div>
     <div class="collapsible-body">
       <ul class="note-list" style="margin-top:6px;">
-        <li>港（OSAKA/KOBE）・船社名・申請方法（メール/FAX）</li>
+        <li>港（OSAKA/KOBE/TOKYO）・船社名・申請方法（メール/FAX）</li>
         <li>宛先名・FAX番号またはメールアドレス</li>
         <li>フォームファイル名（SharePoint内のパス）</li>
         <li>特記事項（FAX返信の有無など）</li>
@@ -726,6 +763,7 @@ const GRAPH_API    = 'https://graph.microsoft.com/v1.0';
 // フォーム自動取得用（船社別FAX/メールカードと同じ港フォルダ）
 const OSAKA_FOLDER_URL = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX';
 const KOBE_FOLDER_URL  = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL';
+const TOKYO_FOLDER_URL = 'https://leenear.sharepoint.com/:f:/s/leenearsite1/IgAtupNTndi1RLcew9gxFDGtAdPKL90bkRflvi2NgEkYb0o?e=4dEU4e';
 const PO_EXCEL_URL     = 'https://leenear.sharepoint.com/:x:/s/leenearsite1/IQDdu5bGWXY4TKbAM39456BPAdxzQ8J4jFlgJ4f4qVGh3tQ?e=P27WZK';
 
 let S = { accessToken: null, tokenExpiry: 0, refreshToken: null, graphToken: null, graphTokenExpiry: 0, userName: '', userEmail: '', sessionExpiry: 0 };
@@ -970,7 +1008,7 @@ function updatePickupDate(value){
 // BKG検索結果からフォームを自動取得
 async function autoFetchForm(port, carrierKey){
   const resultEl = document.getElementById('autoFetchResult');
-  const folderUrl = port === 'OSAKA' ? OSAKA_FOLDER_URL : port === 'KOBE' ? KOBE_FOLDER_URL : null;
+  const folderUrl = port === 'OSAKA' ? OSAKA_FOLDER_URL : port === 'KOBE' ? KOBE_FOLDER_URL : port === 'TOKYO' ? TOKYO_FOLDER_URL : null;
   if(!folderUrl){ resultEl.innerHTML = '<div class="error-box">この港には自動取得用フォルダが設定されていません。</div>'; return; }
   resultEl.innerHTML = '<div class="loading-box"><div class="spinner"></div>SharePointでフォームを検索中...</div>';
   try {
@@ -1137,6 +1175,35 @@ async function fillSinokorKobePdf(bytes, ctx){
   return pdfDoc.save();
 }
 
+// KMTC東京フォーム（東海運専用フォーム）への自動入力
+// このPDFはFAXスキャン原稿でページ回転270度（mediabox 595.44×842.4のportraitをdisplayでlandscape 842.4×595.44として表示）。
+// 座標は sample/TOKYO/KMTC TOKYO.pdf（実データ入り、水色文字の記入例）の各項目位置を解析して算出。
+// 回転ページのためpdf-libのdrawTextはrotate:-90を指定しないと文字が縦向きになる点に注意
+async function fillKmtcTokyoPdf(bytes, ctx){
+  const { PDFDocument, StandardFonts, rgb, degrees } = PDFLib;
+  const pdfDoc = await PDFDocument.load(bytes);
+  const page = pdfDoc.getPages()[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const draw = (text, x, y, size=14) => {
+    if(!text) return;
+    try {
+      const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
+      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0), rotate: degrees(-90) });
+    } catch(e) {
+      console.warn('PDF記入をスキップ:', text, e.message);
+    }
+  };
+  const pickup = mdParts(ctx.pickupDate);
+  draw(ctx.vslName, 462.4, 632.4, 14); // 本船名欄
+  draw(ctx.voyNo,   462.4, 376.4, 14); // VOY. NO.欄
+  draw(ctx.bkgNo,   356.0, 404.4, 14); // BOOKING NO.欄
+  draw(ctx.pod,     355.2, 641.6, 14); // 仕向地欄
+  draw(pickup.month, 284.0, 634.0, 14); // 搬出日欄（月）
+  draw(pickup.day,   284.4, 552.4, 14); // 搬出日欄（日）
+  if(ctx.containerQty) draw(ctx.containerQty, 180.0, 371.6, 12); // 40'HQ本数欄
+  return pdfDoc.save();
+}
+
 // キー: fillerKey() の戻り値 → 実装関数
 // 新しい船社/港を対応させる場合は、sample PDFをPyMuPDFで解析して座標を求め、ここに追加する
 // 「古着」は「古紙」とレイアウトが同一のテンプレートのため同じ関数を使用（sample/CNC KOBE_古着.pdfの実データで座標一致を確認済み）
@@ -1152,6 +1219,7 @@ const PDF_FILLERS = {
   'OSAKA_NAMSUNG': fillTatsumiOsakaPdf,
   'OSAKA_DONG YOUNG': fillTatsumiOsakaPdf,
   'OSAKA_PAN OCEAN': fillTatsumiOsakaPdf,
+  'TOKYO_KMTC': fillKmtcTokyoPdf,
 };
 
 // ════════════════════════════════════════════
@@ -1548,7 +1616,7 @@ function printPdfBytes(bytes){
 
 // 「フォームを自動取得」を経由せず、1クリックでSharePoint検索→自動入力→ダウンロード（またはメール準備）まで行う
 async function autoFillDirect(port, carrierKey, btnEl){
-  const folderUrl = port === 'OSAKA' ? OSAKA_FOLDER_URL : port === 'KOBE' ? KOBE_FOLDER_URL : null;
+  const folderUrl = port === 'OSAKA' ? OSAKA_FOLDER_URL : port === 'KOBE' ? KOBE_FOLDER_URL : port === 'TOKYO' ? TOKYO_FOLDER_URL : null;
   if(!folderUrl || !lastBkgContext){ alert('先にBKG検索を行ってください。'); return; }
   const origLabel = btnEl.innerHTML;
   btnEl.disabled = true; btnEl.textContent = '⏳ 検索中...';
@@ -1932,6 +2000,7 @@ function portFromPol(polName){
   const p = (polName||'').toUpperCase();
   if(p.includes('OSAKA') || p.includes('大阪')) return 'OSAKA';
   if(p.includes('KOBE')  || p.includes('神戸')) return 'KOBE';
+  if(p.includes('TOKYO') || p.includes('東京')) return 'TOKYO';
   return null;
 }
 
