@@ -121,6 +121,9 @@
   .pickup-date-box{background:var(--box-pickup-bg);border:1px solid var(--accent2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:16px;}
   .pickup-date-box .pd-label{font-size:11px;color:var(--accent2);font-weight:700;letter-spacing:1px;}
   .pickup-date-box .pd-val{font-size:20px;font-weight:800;color:var(--accent2);}
+  .pickup-date-box .pd-val-input{font-size:20px;font-weight:800;color:var(--accent2);background:transparent;border:none;border-bottom:1px dashed var(--accent2);padding:0 2px;outline:none;font-family:var(--font-main);}
+  .pickup-date-box .pd-val-input:focus{border-bottom-style:solid;}
+  .pickup-date-box .pd-dow{font-size:15px;font-weight:700;color:var(--accent2);}
   .pickup-date-box .pd-note{font-size:11px;color:var(--text2);}
   .goto-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;background:var(--accent);border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s;}
   .goto-btn:hover{opacity:.85;}
@@ -1000,8 +1003,12 @@ function updatePickupDate(value){
   if(!lastBkgContext) return;
   lastBkgContext.pickupDate = value;
   const disp = document.getElementById('pdValDisplay');
+  const dow  = document.getElementById('pdDowDisplay');
   const note = document.getElementById('pdNoteDisplay');
-  if(disp) disp.textContent = value ? `${value} (${getDow(value)})` : '—';
+  const editInput = document.getElementById('editPickupDate');
+  if(disp && disp.value !== value) disp.value = value;
+  if(editInput && editInput.value !== value) editInput.value = value;
+  if(dow) dow.textContent = value ? `(${getDow(value)})` : '';
   if(note) note.textContent = '※ 手動で修正されました';
 }
 
@@ -1862,7 +1869,6 @@ async function searchBkg(){
 
     // ⑤ 結果表示
     const fmtDate = d => d ? d.substring(0,10).replace(/-/g,'/') : '—';
-    const pickupStr = pickupDate ? `${pickupDate} (${getDow(pickupDate)})` : '—';
     let html = `<div class="result-card">
       <div class="result-title">📋 COMPASS データ — ${bkgNo}</div>
       <div class="result-grid">
@@ -1882,7 +1888,10 @@ async function searchBkg(){
       html += `<div class="pickup-date-box">
         <div>
           <div class="pd-label">📅 P/Oピックアップ希望日</div>
-          <div class="pd-val" id="pdValDisplay">${pickupStr}</div>
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <input type="date" class="pd-val-input" id="pdValDisplay" value="${pickupDate}" onchange="updatePickupDate(this.value)">
+            <span class="pd-dow" id="pdDowDisplay">(${getDow(pickupDate)})</span>
+          </div>
         </div>
         <div class="pd-note" id="pdNoteDisplay">CY OPEN (${fmtDate(bkg.cr49f_cy_open)}) の前1営業日</div>
       </div>`;
