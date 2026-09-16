@@ -1675,15 +1675,16 @@ function refreshCardContacts(contacts){
     const port = (card.dataset.port||'').toUpperCase();
     const ck   = (card.dataset.carrierKey||'').toUpperCase().replace(/[\s\-]/g,'');
     const c    = contacts[`${port}_${ck}`];
-    addContactEditButton(card, card.dataset.port, card.dataset.carrierKey);
+    // 連絡先編集ボタンは、Excelからの読み込み値が別船社の行とズレる不具合が未解決のため
+    // 一時的に無効化中（実装自体は温存。原因判明後にaddContactEditButton呼び出しを復活させる）
+    // addContactEditButton(card, card.dataset.port, card.dataset.carrierKey);
     if(!c) return;
 
     // メールアドレス（mailtoリンク）の更新
-    const mailLinks = card.querySelectorAll('a[href^="mailto:"]');
-    if(mailLinks.length){
-      mailLinks.forEach(a=>{
-        a.href = c.to ? `mailto:${c.to}` : '#';
-        if(!a.classList.contains('btn')) a.textContent = c.to || '(未設定)';
+    if(c.to){
+      card.querySelectorAll('a[href^="mailto:"]').forEach(a=>{
+        a.href = `mailto:${c.to}`;
+        if(!a.classList.contains('btn')) a.textContent = c.to;
       });
     }
 
@@ -1691,24 +1692,27 @@ function refreshCardContacts(contacts){
     const rows = Array.from(card.querySelectorAll('.card-row'));
     const faxNoRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX No.'));
     const faxToRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX先'));
-    if(faxNoRow){
+    if(faxNoRow && c.to){
       const faxNos = [c.to, c.to2].filter(Boolean);
       const val = faxNoRow.querySelector('.card-val');
-      if(val) val.innerHTML = faxNos.length ? `<strong style="color:var(--text)">${escapeXmlText(faxNos.join(' / '))}</strong>` : '';
+      if(val) val.innerHTML = `<strong style="color:var(--text)">${escapeXmlText(faxNos.join(' / '))}</strong>`;
     }
-    if(faxToRow){
-      const val = faxToRow.querySelector('.card-val');
-      if(val) val.textContent = c.name || '';
-    } else if(faxNoRow && c.name){
-      const newRow = document.createElement('div');
-      newRow.className = 'card-row';
-      newRow.innerHTML = `<div class="card-key">FAX先</div><div class="card-val">${escapeXmlText(c.name)}</div>`;
-      faxNoRow.parentNode.insertBefore(newRow, faxNoRow);
+    if(c.name){
+      if(faxToRow){
+        const val = faxToRow.querySelector('.card-val');
+        if(val) val.textContent = c.name;
+      } else if(faxNoRow){
+        const newRow = document.createElement('div');
+        newRow.className = 'card-row';
+        newRow.innerHTML = `<div class="card-key">FAX先</div><div class="card-val">${escapeXmlText(c.name)}</div>`;
+        faxNoRow.parentNode.insertBefore(newRow, faxNoRow);
+      }
     }
   });
 }
 
 // カードフッターに「連絡先を編集」ボタンを追加（未追加の場合のみ）
+// 現在呼び出し元(refreshCardContacts)からのコールを一時停止中 — 上記コメント参照
 function addContactEditButton(card, port, carrierKey){
   const footer = card.querySelector('.card-footer');
   if(!footer || footer.querySelector('.contact-edit-btn')) return;
