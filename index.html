@@ -947,6 +947,7 @@ function encodeSharingUrl(url){
 }
 
 // 港フォルダ内を船社キーで検索し、該当ファイル一覧を返す
+// files: マッチしたファイル一覧 / allNames: フォルダ内の全ファイル名（0件時のデバッグ表示用）
 async function findCarrierFiles(portFolderUrl, carrierKey){
   const shareId    = encodeSharingUrl(portFolderUrl);
   const folderItem = await graphGet(`shares/${shareId}/driveItem`);
@@ -954,8 +955,10 @@ async function findCarrierFiles(portFolderUrl, carrierKey){
   const itemId     = folderItem.id;
   const children   = await graphGet(`drives/${driveId}/items/${itemId}/children?$select=id,name,webUrl`);
   const key = carrierKey.toUpperCase().replace(/[\s_-]/g,'');
-  return (children.value||[]).filter(f => f.name.toUpperCase().replace(/[\s_-]/g,'').includes(key))
+  const all = children.value||[];
+  const files = all.filter(f => f.name.toUpperCase().replace(/[\s_-]/g,'').includes(key))
     .map(f => ({ id:f.id, name:f.name, webUrl:f.webUrl, driveId }));
+  return { files, allNames: all.map(f => f.name), folderName: folderItem.name };
 }
 
 // 直近のBKG検索結果（PDF自動入力に使用）
@@ -1020,10 +1023,13 @@ async function autoFetchForm(port, carrierKey){
   if(!folderUrl){ resultEl.innerHTML = '<div class="error-box">この港には自動取得用フォルダが設定されていません。</div>'; return; }
   resultEl.innerHTML = '<div class="loading-box"><div class="spinner"></div>SharePointでフォームを検索中...</div>';
   try {
-    const files = await findCarrierFiles(folderUrl, carrierKey);
+    const { files, allNames, folderName } = await findCarrierFiles(folderUrl, carrierKey);
     _foundFormFiles = files;
     if(files.length === 0){
-      resultEl.innerHTML = `<div class="error-box">「${carrierKey}」に該当するフォームが見つかりませんでした。フォルダを手動で確認してください。</div>`;
+      const listHtml = allNames.length
+        ? `<div style="font-size:12px;color:var(--text2);margin-top:6px;">フォルダ「${folderName}」内のファイル(${allNames.length}件): ${allNames.join(', ')}</div>`
+        : `<div style="font-size:12px;color:var(--text2);margin-top:6px;">フォルダ「${folderName}」は空です。</div>`;
+      resultEl.innerHTML = `<div class="error-box">「${carrierKey}」に該当するフォームが見つかりませんでした。フォルダを手動で確認してください。${listHtml}</div>`;
     } else {
       if(files.length === 1) window.open(files[0].webUrl, '_blank');
       const note = files.length > 1
@@ -1676,10 +1682,13 @@ async function autoFillDirect(port, carrierKey, btnEl){
   const origLabel = btnEl.innerHTML;
   btnEl.disabled = true; btnEl.textContent = '⏳ 検索中...';
   try {
-    const files = await findCarrierFiles(folderUrl, carrierKey);
+    const { files, allNames, folderName } = await findCarrierFiles(folderUrl, carrierKey);
     _foundFormFiles = files;
     if(files.length === 0){
-      alert(`「${carrierKey}」に該当するフォームが見つかりませんでした。`);
+      const listMsg = allNames.length
+        ? `\n\nフォルダ「${folderName}」内のファイル(${allNames.length}件):\n${allNames.join('\n')}`
+        : `\n\nフォルダ「${folderName}」は空です。`;
+      alert(`「${carrierKey}」に該当するフォームが見つかりませんでした。${listMsg}`);
       btnEl.disabled = false; btnEl.innerHTML = origLabel;
       return;
     }
