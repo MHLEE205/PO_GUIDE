@@ -239,6 +239,9 @@
   .edit-grid label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text2);font-weight:600;}
   .edit-grid input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;outline:none;font-family:var(--font-main);}
   .edit-grid input:focus{border-color:var(--accent);}
+  .edit-box textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;outline:none;font-family:var(--font-main);}
+  .edit-box textarea:focus{border-color:var(--accent);}
+  .edit-box > label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--text2);font-weight:600;}
 
   /* ── 送信先 案内ボックス ── */
   .contact-box{border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
@@ -981,6 +984,34 @@ function mdDow(dateStr){
   return `${d.getMonth()+1}/${d.getDate()}(${dow})`;
 }
 
+// 日本語テキストをCanvas 2Dでラスタライズ→PNG化しPDFページに埋め込む。
+// pdf-libの標準フォント(WinAnsi)は日本語を描画できないため、既存PDFへの直接描画（drawText）が必要な
+// フォームで日本語を出す場合はこの関数を使う（renderHtmlToPdf()と同じ「ブラウザに描画させる」方式）
+async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0]){
+  if(!text) return;
+  const scale = 4; // 高解像度化して縮小配置しギザギザを防ぐ
+  const fontSpec = `${size*scale}px 'Yu Gothic','Meiryo',sans-serif`;
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = fontSpec;
+  const m = measure.measureText(text);
+  const ascent  = m.actualBoundingBoxAscent  || size*scale*0.85;
+  const descent = m.actualBoundingBoxDescent || size*scale*0.2;
+  const padX = 2*scale;
+  const w = Math.max(1, Math.ceil(m.width + padX*2));
+  const h = Math.max(1, Math.ceil(ascent + descent + 2));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.font = fontSpec;
+  ctx.fillStyle = `rgb(${color[0]*255},${color[1]*255},${color[2]*255})`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(text, padX, ascent + 1);
+  const pngBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), c => c.charCodeAt(0));
+  const png = await pdfDoc.embedPng(pngBytes);
+  const descentOffset = (descent + 1) / scale; // 画像下端はベースラインより descent 分下にある
+  page.drawImage(png, { x, y: y - descentOffset, width: w/scale, height: h/scale });
+}
+
 // 釜山T/S経由の韓国向け主要港は仕向地に「, KOREA(PUSAN T/S)」を自動付加
 const PUSAN_TS_CITIES = ['KWANGYANG','PUSAN','INCHEON'];
 function applyPusanTs(pod){
@@ -1242,7 +1273,18 @@ async function fillYangmingTokyoPdf(bytes, ctx){
   draw(ctx.pod,     416, 531.6, 11); // 最終仕向地欄
   // コンテナ本数（40'DRY(9'6")行の空欄、数字のみ）
   if(ctx.containerQty) draw(ctx.containerQty, 280, 418.6, 11);
-  if(ctx.pickupDate) draw(mdDow(ctx.pickupDate), 193, 269.4, 11); // ピックアップ希望日欄（M/D(曜)の1セル）
+  // ピックアップ希望日欄（M/D(曜)の1セル）。曜日は日本語漢字のため標準フォントでは描画できず、
+  // drawJpText()でCanvasにラスタライズしてPNGとして埋め込む
+  if(ctx.pickupDate) await drawJpText(pdfDoc, page, mdDow(ctx.pickupDate), 193, 269.4, 11);
+  // OVER HEIGHT〜電話番号欄の右側余白（表の右列、印字なし部分）に、改行区切りのメモを1行ずつ記入
+  // 各行のY座標はsample/TOKYO/YANGMING TOKYO.pdfを解析し、左側の各行ラベルのベースラインに合わせた
+  const MEMO_LINE_Y = [314.4, 293.5, 269.4, 244.6, 217.7, 190.8];
+  if(ctx.memo){
+    const lines = String(ctx.memo).split('\n').slice(0, MEMO_LINE_Y.length);
+    for(let i=0; i<lines.length; i++){
+      if(lines[i]) await drawJpText(pdfDoc, page, lines[i], 332, MEMO_LINE_Y[i], 10);
+    }
+  }
   return pdfDoc.save();
 }
 
@@ -1968,7 +2010,8 @@ async function searchBkg(){
         cyCut:        bkg.cr49f_cy_cut ? bkg.cr49f_cy_cut.substring(0,10) : null,
         containerQty: containerQty !== '' ? String(containerQty) : '',
         port:         matchedPort,
-        carrierKey:   matchedKey
+        carrierKey:   matchedKey,
+        memo:         ''
       };
       html += contactBoxHtml(firstCard);
       html += `<div class="edit-box">
@@ -1990,6 +2033,10 @@ async function searchBkg(){
             <input type="number" id="editContainerQty" min="0" step="1" placeholder="例：2" value="${containerQty !== '' ? containerQty : ''}" oninput="updateBkgField('containerQty', this.value)">
           </label>
         </div>
+        ${matchedPort === 'TOKYO' && matchedKey === 'YANGMING' ? `
+        <label style="display:block;margin-top:10px;">メモ（フォーム右側余白に印字されます。最大6行、改行で行分け）
+          <textarea id="editMemo" rows="3" style="width:100%;resize:vertical;" placeholder="例：特殊コンテナにつき当日ピック希望" oninput="updateBkgField('memo', this.value)"></textarea>
+        </label>` : ''}
       </div>`;
       html += `<button class="btn btn-primary" style="background:var(--accent2);margin:2px 8px 2px 0;padding:9px 18px;font-size:10px;font-weight:800;border-radius:6px;" onclick="autoFillDirect('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}', this)"><span style="font-size:11px;">📝</span> <span style="font-size:11.5px;">P/O自動作成(MAIL,FAX)</span></button>
       <button class="goto-btn" style="display:none;background:var(--accent);padding:6px 13px;font-size:12px;font-weight:600;" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォーム(空白)</button>
