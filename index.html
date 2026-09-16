@@ -1153,6 +1153,14 @@ async function fillCncKobePdf(bytes, ctx){
   draw(cut.day,      369, 391.1, 11);
   // 担当者名欄（会社名/担当者名/電話番号が縦に並ぶ発信元ブロックの2段目）
   if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 180, 690, 11);
+  // 「その他指定事項（危険品、オーバーディメンション等）」欄（バン詰め場所の次の行、改行区切りで最大2行）
+  const MEMO_LINE_Y_CNC = [344, 326];
+  if(ctx.memo){
+    const lines = String(ctx.memo).split('\n').slice(0, MEMO_LINE_Y_CNC.length);
+    for(let i=0; i<lines.length; i++){
+      if(lines[i]) await drawJpText(pdfDoc, page, lines[i], 232, MEMO_LINE_Y_CNC[i], 10);
+    }
+  }
   return pdfDoc.save();
 }
 
@@ -2077,10 +2085,17 @@ async function searchBkg(){
           <label>陸揚港（T/S）
             <input type="text" id="editDischargePort" value="KAOHSIUNG" oninput="updateBkgField('dischargePort', this.value)">
           </label>
-        </div>
-        <label style="display:block;margin-top:10px;">メモ（フォーム右側余白に印字されます。最大6行、改行で行分け）
-          <textarea id="editMemo" rows="3" style="width:100%;resize:vertical;" placeholder="例：特殊コンテナにつき当日ピック希望" oninput="updateBkgField('memo', this.value)"></textarea>
-        </label>` : ''}
+        </div>` : ''}
+        ${(() => {
+          const isYangmingTokyo = matchedPort === 'TOKYO' && matchedKey === 'YANGMING';
+          const isCncKobeGroup  = matchedPort === 'KOBE' && (matchedKey === 'CNC' || matchedKey === 'HEUNG-A');
+          if(!isYangmingTokyo && !isCncKobeGroup) return '';
+          const note = isYangmingTokyo ? 'フォーム右側余白に印字されます。最大6行' : '「その他指定事項（危険品、オーバーディメンション等）」欄に印字されます。最大2行';
+          const rows = isYangmingTokyo ? 3 : 2;
+          return `<label style="display:block;margin-top:10px;">メモ（${note}、改行で行分け）
+          <textarea id="editMemo" rows="${rows}" style="width:100%;resize:vertical;" placeholder="例：特殊コンテナにつき当日ピック希望" oninput="updateBkgField('memo', this.value)"></textarea>
+        </label>`;
+        })()}
       </div>`;
       html += `<button class="btn btn-primary" style="background:var(--accent2);margin:2px 8px 2px 0;padding:9px 18px;font-size:10px;font-weight:800;border-radius:6px;" onclick="autoFillDirect('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}', this)"><span style="font-size:11px;">📝</span> <span style="font-size:11.5px;">P/O自動作成(MAIL,FAX)</span></button>
       <button class="goto-btn" style="display:none;background:var(--accent);padding:6px 13px;font-size:12px;font-weight:600;" onclick="autoFetchForm('${matchedPort}','${matchedKey.replace(/'/g,"\\'")}')">📂 フォーム(空白)</button>
