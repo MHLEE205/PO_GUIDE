@@ -1058,11 +1058,13 @@ function updatePickupDate(value){
   const disp = document.getElementById('pdValDisplay');
   const dow  = document.getElementById('pdDowDisplay');
   const note = document.getElementById('pdNoteDisplay');
+  const note2 = document.getElementById('editPickupDateNote');
   const editInput = document.getElementById('editPickupDate');
   if(disp && disp.value !== value) disp.value = value;
   if(editInput && editInput.value !== value) editInput.value = value;
   if(dow) dow.textContent = value ? `(${getDow(value)})` : '';
   if(note) note.textContent = '※ 手動で修正されました';
+  if(note2) note2.textContent = '※ 手動で修正されました';
 }
 
 // BKG検索結果からフォームを自動取得
@@ -2026,7 +2028,9 @@ async function searchBkg(){
       </div>`;
 
     if(pickupDate){
-      html += `<div class="pickup-date-box">
+      // 下部の「送信前に確認・修正」内のピックアップ希望日欄と重複するため非表示。
+      // updatePickupDate()が参照するID要素はそのまま残し、機能はバックグラウンドで維持する
+      html += `<div class="pickup-date-box" style="display:none;" aria-hidden="true">
         <div>
           <div class="pd-label">📅 P/Oピックアップ希望日</div>
           <div style="display:flex;align-items:baseline;gap:8px;">
@@ -2072,6 +2076,7 @@ async function searchBkg(){
           </label>
           <label>ピックアップ希望日
             <input type="date" id="editPickupDate" value="${pickupDate || ''}" onchange="updatePickupDate(this.value)">
+            <span id="editPickupDateNote" style="font-size:11px;color:var(--text2);font-weight:400;">${pickupDate ? `CY OPEN (${fmtDate(bkg.cr49f_cy_open)}) の前1営業日` : ''}</span>
           </label>
           <label>コンテナ本数（40'DRY(9'6")・数字のみ）
             <input type="number" id="editContainerQty" min="0" step="1" placeholder="例：2" value="${containerQty !== '' ? containerQty : ''}" oninput="updateBkgField('containerQty', this.value)">
