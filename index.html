@@ -776,6 +776,24 @@ const PO_EXCEL_URL     = 'https://leenear.sharepoint.com/:x:/s/leenearsite1/IQDd
 let S = { accessToken: null, tokenExpiry: 0, refreshToken: null, graphToken: null, graphTokenExpiry: 0, userName: '', userEmail: '', sessionExpiry: 0 };
 let _poContacts = null; // PO EXCEL.xlsxから読み込んだ船社別連絡先キャッシュ
 
+// メールアドレス → 担当者の日本語表記氏名（PO書類の担当者名欄はこの表記で統一する）
+const STAFF_NAME_MAP = {
+  'hn_ju@leenearcorp.com':       '朱 フナム',
+  'm_oba@leenearcorp.com':       '大場 未由',
+  'm_takeuchi@leenearcorp.com':  '竹内 雅将',
+  'sw_park@leenearcorp.com':     '朴 成旭',
+  'ja_lee@leenearcorp.com':      '李 ジュア',
+  'kx_zhan@leenearcorp.com':     'セン ガイキン',
+  'sw_lim@leenearcorp.com':      '林 成元',
+};
+
+// ログイン中のCOMPASSアカウントのメールアドレスからSTAFF_NAME_MAPで日本語氏名を引く
+// （id_tokenのnameクレームは英字表記のため使用しない）→ 各PO書類の担当者名欄のデフォルト値
+function getStaffName(){
+  const email = (S.userEmail || '').toLowerCase();
+  return STAFF_NAME_MAP[email] || S.userName || (email ? email.split('@')[0] : '');
+}
+
 // ── ログイン状態の永続化（24時間）──
 const SESSION_KEY = 'po_guide_session';
 const SESSION_TTL_MS = 24*60*60*1000;
@@ -1133,6 +1151,8 @@ async function fillCncKobePdf(bytes, ctx){
   draw(pickup.day,   369, 409.1, 11);
   draw(cut.month,    290, 391.1, 11);
   draw(cut.day,      369, 391.1, 11);
+  // 担当者名欄（会社名/担当者名/電話番号が縦に並ぶ発信元ブロックの2段目）
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 180, 686.1, 11);
   return pdfDoc.save();
 }
 
@@ -1164,6 +1184,8 @@ async function fillTatsumiOsakaPdf(bytes, ctx){
   draw(cut.day,      298, 545, 11);
   draw(pickup.month, 230, 271, 11);
   draw(pickup.day,   298, 271, 11);
+  // 御担当者様欄
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 303, 665.9, 11);
   return pdfDoc.save();
 }
 
@@ -1192,6 +1214,8 @@ async function fillKmtcKobePdf(bytes, ctx){
   if(ctx.containerQty) draw(ctx.containerQty, 235, 513.6, 11);
   draw(pickup.month, 395, 646.1, 11);
   draw(pickup.day,   460, 647.2, 11);
+  // 担当者名欄（会社名/担当者名/電話番号が縦に並ぶ発信元ブロックの2段目）
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 384, 358.7, 11);
   return pdfDoc.save();
 }
 
@@ -1217,6 +1241,8 @@ async function fillSinokorKobePdf(bytes, ctx){
   draw(ctx.bkgNo,   320, 591.9, 11);
   if(pickup.month || pickup.day) draw(`${pickup.month}/${pickup.day}`, 68, 333.9, 11); // 搬出日欄
   if(ctx.containerQty) draw(ctx.containerQty, 270, 333.9, 11); // 本数欄
+  // ご担当者様/TEL/FAX欄
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 405, 509.1, 11);
   return pdfDoc.save();
 }
 
@@ -1286,6 +1312,8 @@ async function fillYangmingTokyoPdf(bytes, ctx){
       if(lines[i]) await drawJpText(pdfDoc, page, lines[i], 332, MEMO_LINE_Y[i], 10);
     }
   }
+  // 担当者名欄（申込会社名/担当者名/電話番号の3行、担当者名は上から2行目）
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 160, 217.0, 11);
   return pdfDoc.save();
 }
 
@@ -1350,6 +1378,10 @@ async function fillInterasiaOsakaXlsx(bytes, ctx){
   xml = xlsxSetStringCell(xml, 'H13',  ctx.bkgNo   || '');   // Booking No.
   if(ctx.pickupDate) xml = xlsxSetNumberCell(xml, 'E15', toExcelSerial(ctx.pickupDate)); // 引取日
   if(ctx.containerQty) xml = xlsxSetNumberCell(xml, 'F21', Number(ctx.containerQty));    // 40'(9'6")本数
+  if(ctx.staffName){
+    xml = xlsxSetStringCell(xml, 'G32',  ctx.staffName); // 御担当者名
+    xml = xlsxSetStringCell(xml, 'AJ32', ctx.staffName); // 書類作成先 御担当者名
+  }
   zip.file(sheetPath, xml);
   return zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
 }
@@ -1367,6 +1399,7 @@ async function fillYangmingOsakaXlsx(bytes, ctx){
   xml = xlsxSetStringCell(xml, 'S24', ctx.pod     || '');   // FINAL DESTINATION
   if(ctx.pickupDate)    xml = xlsxSetNumberCell(xml, 'B30', toExcelSerial(ctx.pickupDate));  // PICK日
   if(ctx.containerQty)  xml = xlsxSetNumberCell(xml, 'G34', Number(ctx.containerQty));       // 40'HQ(DRY)本数
+  if(ctx.staffName)     xml = xlsxSetStringCell(xml, 'F12', ctx.staffName);                  // 御担当者名
   zip.file(sheetPath, xml);
   return zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
 }
@@ -1437,7 +1470,7 @@ function buildYangmingFormHtml(ctx, terminal){
     </table>
     <table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-bottom:8px;">
       <tr><td style="${td}width:34px;">FM:</td><td style="${td}width:90px;">貴社名:</td><td style="${td}font-weight:700;width:170px;">株式会社リニア</td><td style="${td}width:44px;">TEL：</td><td style="${td}font-weight:700;">03-3528-9850</td></tr>
-      <tr><td style="${td}"></td><td style="${td}">御担当者名:</td><td style="${td}font-weight:700;">朱(ジュ)</td><td style="${td}">FAX：</td><td style="${td}font-weight:700;">03-3528-9851</td></tr>
+      <tr><td style="${td}"></td><td style="${td}">御担当者名:</td><td style="${td}font-weight:700;">${esc(ctx.staffName || '')}</td><td style="${td}">FAX：</td><td style="${td}font-weight:700;">03-3528-9851</td></tr>
       <tr><td style="${td}"></td><td style="${td}">E-MAIL:</td><td style="${td}font-weight:700;" colspan="3">rcp@leenearcorp.com</td></tr>
     </table>
     <div style="border:1px solid #000;padding:6px 10px;font-size:11px;margin-bottom:10px;box-sizing:border-box;">
@@ -2013,7 +2046,8 @@ async function searchBkg(){
         port:         matchedPort,
         carrierKey:   matchedKey,
         memo:         '',
-        dischargePort: 'KAOHSIUNG' // 陸揚港（T/S）欄。TOKYO YANGMINGフォームのみ使用、通常はKAOHSIUNG T/S固定だが編集可
+        dischargePort: 'KAOHSIUNG', // 陸揚港（T/S）欄。TOKYO YANGMINGフォームのみ使用、通常はKAOHSIUNG T/S固定だが編集可
+        staffName:    getStaffName() // 担当者名欄。ログイン中のCOMPASSアカウント名をデフォルトにし、編集可能
       };
       html += contactBoxHtml(firstCard);
       html += `<div class="edit-box">
@@ -2033,6 +2067,9 @@ async function searchBkg(){
           </label>
           <label>コンテナ本数（40'DRY(9'6")・数字のみ）
             <input type="number" id="editContainerQty" min="0" step="1" placeholder="例：2" value="${containerQty !== '' ? containerQty : ''}" oninput="updateBkgField('containerQty', this.value)">
+          </label>
+          <label>担当者名
+            <input type="text" id="editStaffName" value="${lastBkgContext.staffName}" oninput="updateBkgField('staffName', this.value)">
           </label>
         </div>
         ${matchedPort === 'TOKYO' && matchedKey === 'YANGMING' ? `
