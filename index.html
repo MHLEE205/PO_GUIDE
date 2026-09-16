@@ -1196,6 +1196,8 @@ async function fillTatsumiOsakaPdf(bytes, ctx){
   draw(pickup.day,   298, 271, 11);
   // 御担当者様欄
   if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 303, 665.9, 11);
+  // 要望事項欄（1行。デフォルトは「恐れ入りますが、受領後ご返信をお願いいたします。」、編集可）
+  if(ctx.memo) await drawJpText(pdfDoc, page, String(ctx.memo).split('\n')[0], 187, 174.4, 11);
   return pdfDoc.save();
 }
 
@@ -2047,6 +2049,7 @@ async function searchBkg(){
       const matchedPort = firstCard.dataset.port;
       const matchedKey  = firstCard.dataset.carrierKey;
       const { vslName, voyNo } = parseVslVoy(bkg.cr49f_main_ship_name);
+      const isTatsumiOsaka = matchedPort === 'OSAKA' && ['HEUNG-A','KMTC','SINOKOR','NAMSUNG','DONG YOUNG','PAN OCEAN'].includes(matchedKey);
       lastBkgContext = {
         bkgNo:        bkg.cr49f_booking_no || '',
         vslName:      vslName,
@@ -2057,7 +2060,7 @@ async function searchBkg(){
         containerQty: containerQty !== '' ? String(containerQty) : '',
         port:         matchedPort,
         carrierKey:   matchedKey,
-        memo:         '',
+        memo:         isTatsumiOsaka ? '恐れ入りますが、受領後ご返信をお願いいたします。' : '', // 辰巳商会フォームの「要望事項」欄デフォルト文言
         dischargePort: 'KAOHSIUNG', // 陸揚港（T/S）欄。TOKYO YANGMINGフォームのみ使用、通常はKAOHSIUNG T/S固定だが編集可
         staffName:    getStaffName() // 担当者名欄。ログイン中のCOMPASSアカウント名をデフォルトにし、編集可能
       };
@@ -2094,11 +2097,13 @@ async function searchBkg(){
         ${(() => {
           const isYangmingTokyo = matchedPort === 'TOKYO' && matchedKey === 'YANGMING';
           const isCncKobeGroup  = matchedPort === 'KOBE' && (matchedKey === 'CNC' || matchedKey === 'HEUNG-A');
-          if(!isYangmingTokyo && !isCncKobeGroup) return '';
-          const note = isYangmingTokyo ? 'フォーム右側余白に印字されます。最大6行' : '「その他指定事項（危険品、オーバーディメンション等）」欄に印字されます。最大2行';
-          const rows = isYangmingTokyo ? 3 : 2;
-          return `<label style="display:block;margin-top:10px;">メモ（${note}、改行で行分け）
-          <textarea id="editMemo" rows="${rows}" style="width:100%;resize:vertical;" placeholder="例：特殊コンテナにつき当日ピック希望" oninput="updateBkgField('memo', this.value)"></textarea>
+          if(!isYangmingTokyo && !isCncKobeGroup && !isTatsumiOsaka) return '';
+          const note = isYangmingTokyo ? 'フォーム右側余白に印字されます。最大6行、改行で行分け'
+            : isCncKobeGroup ? '「その他指定事項（危険品、オーバーディメンション等）」欄に印字されます。最大2行、改行で行分け'
+            : '「要望事項」欄に印字されます。1行のみ';
+          const rows = isYangmingTokyo ? 3 : isCncKobeGroup ? 2 : 1;
+          return `<label style="display:block;margin-top:10px;">メモ（${note}）
+          <textarea id="editMemo" rows="${rows}" style="width:100%;resize:vertical;" placeholder="例：特殊コンテナにつき当日ピック希望" oninput="updateBkgField('memo', this.value)">${escapeXmlText(lastBkgContext.memo || '')}</textarea>
         </label>`;
         })()}
       </div>`;
