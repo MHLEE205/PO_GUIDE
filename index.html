@@ -253,6 +253,26 @@
   .contact-box .cb-val{font-size:16px;font-weight:800;color:var(--text);}
   .contact-box .cb-val a{color:inherit;text-decoration:underline;}
 
+  /* ── 船社連絡先 編集 ── */
+  .contact-edit-btn{background:none;border:1px solid var(--border);color:var(--text2);font-size:10.5px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;font-family:var(--font-main);}
+  .contact-edit-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .ce-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;}
+  .ce-overlay[hidden]{display:none;}
+  .ce-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;width:380px;max-width:100%;box-sizing:border-box;}
+  .ce-box h3{font-size:14px;margin:0 0 4px;color:var(--text);}
+  .ce-box .ce-sub{font-size:11px;color:var(--text2);margin-bottom:12px;}
+  .ce-box label{display:block;font-size:11px;color:var(--text2);font-weight:600;margin-top:10px;margin-bottom:4px;}
+  .ce-box input, .ce-box select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;outline:none;font-family:var(--font-main);box-sizing:border-box;}
+  .ce-box input:focus, .ce-box select:focus{border-color:var(--accent);}
+  .ce-actions{display:flex;gap:8px;margin-top:18px;justify-content:flex-end;}
+  .ce-actions button{padding:8px 16px;border-radius:6px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font-main);}
+  .ce-cancel{background:var(--surface2);color:var(--text2);}
+  .ce-save{background:var(--accent);color:#fff;}
+  .ce-save:disabled{opacity:.6;cursor:default;}
+  .ce-msg{font-size:11px;margin-top:8px;}
+  .ce-msg.error{color:#e05252;}
+  .ce-msg.ok{color:#3cb371;}
+
   /* ── Table ── */
   .ref-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;}
   .ref-table th{background:var(--surface);color:var(--text2);padding:7px 10px;text-align:left;border:1px solid var(--border);font-weight:600;}
@@ -729,6 +749,31 @@
   </div><!-- /detailsSection -->
 
 </div><!-- /container -->
+
+<!-- 船社連絡先 編集モーダル。PO EXCEL.xlsx（OneDrive）を直接書き換える -->
+<div class="ce-overlay" id="ceOverlay" hidden>
+  <div class="ce-box">
+    <h3 id="ceTitle">連絡先を編集</h3>
+    <div class="ce-sub">保存するとPO EXCEL.xlsx（OneDrive）に直接反映されます。</div>
+    <label>申込方法
+      <select id="ceMethod" onchange="updateCeLabels()">
+        <option value="メール">メール</option>
+        <option value="FAX">FAX</option>
+      </select>
+    </label>
+    <label id="ceToLabel">宛先1</label>
+    <input type="text" id="ceTo">
+    <label id="ceTo2Label">宛先2</label>
+    <input type="text" id="ceTo2">
+    <label>宛先名</label>
+    <input type="text" id="ceName">
+    <div class="ce-msg" id="ceMsg"></div>
+    <div class="ce-actions">
+      <button class="ce-cancel" onclick="closeContactEditor()">キャンセル</button>
+      <button class="ce-save" id="ceSaveBtn" onclick="saveContactEditor()">保存</button>
+    </div>
+  </div>
+</div>
 
 <footer>✦ Powered by <span>LEENAI Automation System</span> &nbsp;|&nbsp; LEENEAR CORPORATION &nbsp;|&nbsp; 社内資料・社外秘</footer>
 
@@ -1630,13 +1675,15 @@ function refreshCardContacts(contacts){
     const port = (card.dataset.port||'').toUpperCase();
     const ck   = (card.dataset.carrierKey||'').toUpperCase().replace(/[\s\-]/g,'');
     const c    = contacts[`${port}_${ck}`];
+    addContactEditButton(card, card.dataset.port, card.dataset.carrierKey);
     if(!c) return;
 
     // メールアドレス（mailtoリンク）の更新
-    if(c.to){
-      card.querySelectorAll('a[href^="mailto:"]').forEach(a=>{
-        a.href = `mailto:${c.to}`;
-        if(!a.classList.contains('btn')) a.textContent = c.to;
+    const mailLinks = card.querySelectorAll('a[href^="mailto:"]');
+    if(mailLinks.length){
+      mailLinks.forEach(a=>{
+        a.href = c.to ? `mailto:${c.to}` : '#';
+        if(!a.classList.contains('btn')) a.textContent = c.to || '(未設定)';
       });
     }
 
@@ -1644,23 +1691,174 @@ function refreshCardContacts(contacts){
     const rows = Array.from(card.querySelectorAll('.card-row'));
     const faxNoRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX No.'));
     const faxToRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX先'));
-    if(faxNoRow && c.to){
+    if(faxNoRow){
       const faxNos = [c.to, c.to2].filter(Boolean);
       const val = faxNoRow.querySelector('.card-val');
-      if(val) val.innerHTML = `<strong style="color:var(--text)">${escapeXmlText(faxNos.join(' / '))}</strong>`;
+      if(val) val.innerHTML = faxNos.length ? `<strong style="color:var(--text)">${escapeXmlText(faxNos.join(' / '))}</strong>` : '';
     }
-    if(c.name){
-      if(faxToRow){
-        const val = faxToRow.querySelector('.card-val');
-        if(val) val.textContent = c.name;
-      } else if(faxNoRow){
-        const newRow = document.createElement('div');
-        newRow.className = 'card-row';
-        newRow.innerHTML = `<div class="card-key">FAX先</div><div class="card-val">${escapeXmlText(c.name)}</div>`;
-        faxNoRow.parentNode.insertBefore(newRow, faxNoRow);
-      }
+    if(faxToRow){
+      const val = faxToRow.querySelector('.card-val');
+      if(val) val.textContent = c.name || '';
+    } else if(faxNoRow && c.name){
+      const newRow = document.createElement('div');
+      newRow.className = 'card-row';
+      newRow.innerHTML = `<div class="card-key">FAX先</div><div class="card-val">${escapeXmlText(c.name)}</div>`;
+      faxNoRow.parentNode.insertBefore(newRow, faxNoRow);
     }
   });
+}
+
+// カードフッターに「連絡先を編集」ボタンを追加（未追加の場合のみ）
+function addContactEditButton(card, port, carrierKey){
+  const footer = card.querySelector('.card-footer');
+  if(!footer || footer.querySelector('.contact-edit-btn')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'contact-edit-btn';
+  btn.textContent = '✏️ 連絡先を編集';
+  btn.onclick = () => openContactEditor(port, carrierKey);
+  footer.appendChild(btn);
+}
+
+// ════════════════════════════════════════════
+// 船社連絡先の編集（PO EXCEL.xlsxをGraph APIで直接書き換える）
+// ════════════════════════════════════════════
+let _ceTarget = null; // { port, carrierKey }
+
+function openContactEditor(port, carrierKey){
+  const key = `${port.toUpperCase()}_${carrierKey.toUpperCase().replace(/[\s\-]/g,'')}`;
+  const c = (_poContacts && _poContacts[key]) || { method:'', to:'', to2:'', name:'' };
+  _ceTarget = { port, carrierKey };
+  document.getElementById('ceTitle').textContent = `連絡先を編集 — ${port} / ${carrierKey}`;
+  document.getElementById('ceMethod').value = c.method.toUpperCase().includes('FAX') ? 'FAX' : 'メール';
+  document.getElementById('ceTo').value = c.to || '';
+  document.getElementById('ceTo2').value = c.to2 || '';
+  document.getElementById('ceName').value = c.name || '';
+  document.getElementById('ceMsg').textContent = '';
+  document.getElementById('ceMsg').className = 'ce-msg';
+  document.getElementById('ceSaveBtn').disabled = false;
+  updateCeLabels();
+  document.getElementById('ceOverlay').hidden = false;
+}
+
+// 申込方法（メール／FAX）に応じて宛先1・宛先2の入力ラベルを切り替える
+function updateCeLabels(){
+  const isFax = document.getElementById('ceMethod').value === 'FAX';
+  document.getElementById('ceToLabel').textContent  = isFax ? 'FAX番号1' : 'メールアドレス';
+  document.getElementById('ceTo2Label').textContent = isFax ? 'FAX番号2（任意）' : 'CC（任意）';
+}
+
+function closeContactEditor(){
+  document.getElementById('ceOverlay').hidden = true;
+  _ceTarget = null;
+}
+
+async function saveContactEditor(){
+  if(!_ceTarget) return;
+  const method  = document.getElementById('ceMethod').value;
+  const to      = document.getElementById('ceTo').value.trim();
+  const to2     = document.getElementById('ceTo2').value.trim();
+  const name    = document.getElementById('ceName').value.trim();
+  const msgEl   = document.getElementById('ceMsg');
+  const saveBtn = document.getElementById('ceSaveBtn');
+  saveBtn.disabled = true;
+  msgEl.className = 'ce-msg';
+  msgEl.textContent = '保存中...';
+  try{
+    await savePoContact(_ceTarget.port, _ceTarget.carrierKey, { method, to, to2, name });
+    msgEl.className = 'ce-msg ok';
+    msgEl.textContent = '保存しました。';
+    setTimeout(closeContactEditor, 800);
+  }catch(e){
+    msgEl.className = 'ce-msg error';
+    msgEl.textContent = '保存に失敗しました: ' + e.message;
+    saveBtn.disabled = false;
+  }
+}
+
+// xlsxシートXML内の指定セル（例:"D5"）を新しい文字列値で上書きする。
+// 既存セルの有無やt属性(共有文字列/数値等)に関わらず対応し、セルが存在しない場合は
+// OOXMLの仕様通り列順を保った位置に新規セルを挿入する
+function xlsxSetOrAddCell(xml, addr, value){
+  const rowNum = addr.match(/\d+/)[0];
+  const colLetter = addr.match(/[A-Z]+/)[0];
+  const cellRe = new RegExp(`<c r="${addr}"[^>]*>[\\s\\S]*?</c>|<c r="${addr}"[^>]*/>`);
+  const styleMatch = xml.match(new RegExp(`<c r="${addr}"[^>]*\\bs="(\\d+)"`));
+  const style = styleMatch ? ` s="${styleMatch[1]}"` : '';
+  const cellXml = `<c r="${addr}"${style} t="inlineStr"><is><t xml:space="preserve">${escapeXmlText(value||'')}</t></is></c>`;
+  if(cellRe.test(xml)) return xml.replace(cellRe, cellXml);
+  const rowRe = new RegExp(`<row[^>]*\\br="${rowNum}"[^>]*>[\\s\\S]*?</row>`);
+  const rowMatch = xml.match(rowRe);
+  if(!rowMatch) throw new Error(`行 ${rowNum} が見つかりません`);
+  const rowXml = rowMatch[0];
+  const targetIdx = xlsxColIdx(colLetter);
+  let insertBefore = null;
+  for(const cM of rowXml.matchAll(/<c r="([A-Z]+)\d+"[^>]*\/?>(?:[\s\S]*?<\/c>)?/g)){
+    if(xlsxColIdx(cM[1]) > targetIdx){ insertBefore = cM[0]; break; }
+  }
+  const newRowXml = insertBefore
+    ? rowXml.replace(insertBefore, cellXml + insertBefore)
+    : rowXml.replace('</row>', cellXml + '</row>');
+  return xml.replace(rowXml, newRowXml);
+}
+
+// PO EXCEL.xlsxのsheet1.xml内で、PORT・船社名がloadPoContacts()と同じ正規化キーに一致する行番号を探す
+function findPoContactRowNum(xml, ss, wantKey){
+  for(const rM of xml.matchAll(/<row[^>]*\br="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)){
+    const cells = {};
+    for(const cM of rM[2].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)){
+      const vM = cM[3].match(/<v>([^<]*)<\/v>/) || cM[3].match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
+      if(!vM) continue;
+      cells[cM[1]] = cM[2].includes('t="s"') ? (ss[+vM[1]]||'') : vM[1];
+    }
+    if(!cells.A || !cells.B) continue;
+    const key = `${cells.A.trim().toUpperCase()}_${cells.B.trim().toUpperCase().replace(/[\s\-]/g,'')}`;
+    if(key === wantKey) return rM[1];
+  }
+  return null;
+}
+
+// Graph APIでOneDrive上のファイル内容を丸ごと上書き保存する
+async function graphPutFileContent(driveId, itemId, bytes){
+  const token = await getGraphToken();
+  const res = await fetch(`${GRAPH_API}/drives/${driveId}/items/${itemId}/content`, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/octet-stream' },
+    body: bytes
+  });
+  if(!res.ok){ const e = await res.json().catch(()=>({})); throw new Error(`Graph API ${res.status}: ${e?.error?.message || res.statusText}`); }
+  return res.json();
+}
+
+// PO EXCEL.xlsx（OneDrive）の該当船社の行を直接書き換えて保存し、キャッシュとカード表示を更新する
+async function savePoContact(port, carrierKey, { method, to, to2, name }){
+  const shareId = encodeSharingUrl(PO_EXCEL_URL);
+  const item    = await graphGet(`shares/${shareId}/driveItem`);
+  const bytes   = await downloadFileBytes(item.parentReference.driveId, item.id);
+  const zip     = await JSZip.loadAsync(bytes);
+  const ss = [];
+  const ssFile = zip.file('xl/sharedStrings.xml');
+  if(ssFile){
+    const ssXml = await ssFile.async('string');
+    for(const m of ssXml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g))
+      ss.push([...m[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
+  }
+  const sheetPath = 'xl/worksheets/sheet1.xml';
+  let xml = await zip.file(sheetPath).async('string');
+  const key = `${port.toUpperCase()}_${carrierKey.toUpperCase().replace(/[\s\-]/g,'')}`;
+  const rowNum = findPoContactRowNum(xml, ss, key);
+  if(!rowNum) throw new Error('該当する船社の行がPO EXCEL.xlsx内に見つかりませんでした');
+  xml = xlsxSetOrAddCell(xml, `C${rowNum}`, method);
+  xml = xlsxSetOrAddCell(xml, `D${rowNum}`, to);
+  xml = xlsxSetOrAddCell(xml, `E${rowNum}`, to2);
+  xml = xlsxSetOrAddCell(xml, `F${rowNum}`, name);
+  zip.file(sheetPath, xml);
+  const newBytes = await zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
+  await graphPutFileContent(item.parentReference.driveId, item.id, newBytes);
+
+  _poContacts = null; // キャッシュ破棄→次回アクセス時に再読み込み
+  const contacts = await loadPoContacts();
+  refreshCardContacts(contacts);
 }
 
 // 直接 /content を叩くとリダイレクト先（事前認証済みURL）にAuthorizationヘッダーが
