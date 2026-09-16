@@ -1152,7 +1152,7 @@ async function fillCncKobePdf(bytes, ctx){
   draw(cut.month,    290, 391.1, 11);
   draw(cut.day,      369, 391.1, 11);
   // 担当者名欄（会社名/担当者名/電話番号が縦に並ぶ発信元ブロックの2段目）
-  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 180, 689, 11);
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 180, 692, 11);
   return pdfDoc.save();
 }
 
