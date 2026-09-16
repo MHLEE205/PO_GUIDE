@@ -1270,6 +1270,7 @@ async function fillYangmingTokyoPdf(bytes, ctx){
   draw(ctx.bkgNo,   167, 610.7, 11); // BOOKING NO.欄
   draw(ctx.vslName, 169, 583.0, 11); // 本船名欄
   draw(ctx.voyNo,   474, 583.5, 11); // VOY NO.欄
+  draw(ctx.dischargePort || 'KAOHSIUNG', 167.7, 533.1, 11); // 陸揚港（T/S）欄
   draw(ctx.pod,     416, 531.6, 11); // 最終仕向地欄
   // コンテナ本数（40'DRY(9'6")行の空欄、数字のみ）
   if(ctx.containerQty) draw(ctx.containerQty, 280, 418.6, 11);
@@ -2011,7 +2012,8 @@ async function searchBkg(){
         containerQty: containerQty !== '' ? String(containerQty) : '',
         port:         matchedPort,
         carrierKey:   matchedKey,
-        memo:         ''
+        memo:         '',
+        dischargePort: 'KAOHSIUNG' // 陸揚港（T/S）欄。TOKYO YANGMINGフォームのみ使用、通常はKAOHSIUNG T/S固定だが編集可
       };
       html += contactBoxHtml(firstCard);
       html += `<div class="edit-box">
@@ -2034,6 +2036,11 @@ async function searchBkg(){
           </label>
         </div>
         ${matchedPort === 'TOKYO' && matchedKey === 'YANGMING' ? `
+        <div class="edit-grid" style="margin-top:10px;">
+          <label>陸揚港（T/S）
+            <input type="text" id="editDischargePort" value="KAOHSIUNG" oninput="updateBkgField('dischargePort', this.value)">
+          </label>
+        </div>
         <label style="display:block;margin-top:10px;">メモ（フォーム右側余白に印字されます。最大6行、改行で行分け）
           <textarea id="editMemo" rows="3" style="width:100%;resize:vertical;" placeholder="例：特殊コンテナにつき当日ピック希望" oninput="updateBkgField('memo', this.value)"></textarea>
         </label>` : ''}
