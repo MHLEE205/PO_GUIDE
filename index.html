@@ -639,6 +639,7 @@
         <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">日本通運 京浜港ターミナル支店</div></div>
         <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">03-3528-0127</strong></div></div>
         <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">YANGMING TOKYO.pdf（YANG MING LINE専用フォーム）</div></div>
+        <div class="card-row"><div class="card-key">自動入力</div><div class="card-val">BOOKING NO.・本船名・VOY NO.・仕向地・40'本数・ピックアップ希望日</div></div>
         <div class="card-row"><div class="card-key">特記</div><div class="card-val">申込みはピックアップ前日PM3:00まで（特殊コンテナは2営業日前）</div></div>
       </div>
       <div class="card-footer">
@@ -1211,6 +1212,34 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   return pdfDoc.save();
 }
 
+// YANG MING東京フォーム（日本通運 京浜港ターミナル支店専用フォーム）への自動入力
+// 座標は sample/TOKYO/YANGMING TOKYO.pdf（実データ入り）をPyMuPDFで解析して算出（ページ高925.19pt、A4とは異なる）
+// このフォームはCY-CUT欄がなく、ピックアップ希望日を「M/D(曜)」の1セルで記入する様式（mdDow()を使用）
+async function fillYangmingTokyoPdf(bytes, ctx){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const pdfDoc = await PDFDocument.load(bytes);
+  const page = pdfDoc.getPages()[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const draw = (text, x, y, size=11) => {
+    if(!text) return;
+    try {
+      // 標準フォント(WinAnsi)は日本語等を描画できないため、非対応文字は"?"に置換する
+      const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
+      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+    } catch(e) {
+      console.warn('PDF記入をスキップ:', text, e.message);
+    }
+  };
+  draw(ctx.bkgNo,   167, 610.7, 11); // BOOKING NO.欄
+  draw(ctx.vslName, 169, 583.0, 11); // 本船名欄
+  draw(ctx.voyNo,   474, 583.5, 11); // VOY NO.欄
+  draw(ctx.pod,     416, 531.6, 11); // 最終仕向地欄
+  // コンテナ本数（40'DRY(9'6")行の空欄、数字のみ）
+  if(ctx.containerQty) draw(ctx.containerQty, 280, 418.6, 11);
+  if(ctx.pickupDate) draw(mdDow(ctx.pickupDate), 193, 269.4, 11); // ピックアップ希望日欄（M/D(曜)の1セル）
+  return pdfDoc.save();
+}
+
 // キー: fillerKey() の戻り値 → 実装関数
 // 新しい船社/港を対応させる場合は、sample PDFをPyMuPDFで解析して座標を求め、ここに追加する
 // 「古着」は「古紙」とレイアウトが同一のテンプレートのため同じ関数を使用（sample/CNC KOBE_古着.pdfの実データで座標一致を確認済み）
@@ -1227,6 +1256,7 @@ const PDF_FILLERS = {
   'OSAKA_DONG YOUNG': fillTatsumiOsakaPdf,
   'OSAKA_PAN OCEAN': fillTatsumiOsakaPdf,
   'TOKYO_KMTC': fillKmtcTokyoPdf,
+  'TOKYO_YANGMING': fillYangmingTokyoPdf,
 };
 
 // ════════════════════════════════════════════
