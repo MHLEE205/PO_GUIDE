@@ -430,7 +430,7 @@
       <div class="card-body">
         <div class="card-row"><div class="card-key">宛先</div><div class="card-val">上組 南港C-9</div></div>
         <div class="card-row"><div class="card-key">メール</div><div class="card-val"><a href="mailto:osaka_empty@kamigumi.co.jp?cc=rcp@leenearcorp.com">osaka_empty@kamigumi.co.jp</a></div></div>
-        <div class="card-row"><div class="card-key">件名</div><div class="card-val"><code>IAL-Booking No.xxx 船名 M/D(曜)~ PICK UP 希望</code></div></div>
+        <div class="card-row"><div class="card-key">件名</div><div class="card-val"><code>IAL-Booking No, xxx ピックアップオーダーのご送付</code></div></div>
         <div class="card-row"><div class="card-key">添付</div><div class="card-val">INTERASIA_OSAKA.xlsx</div></div>
       </div>
       <div class="card-footer">
@@ -1683,7 +1683,8 @@ async function generateYangmingRecordPdf(ctx, terminal){
 // subjectには件名を動的に組み立てる関数（ctx→string）を指定できる（subjectPrefixより優先）
 // extraFileはExcelとは別にローカルへ自動保存する追加ファイル（PDF等）を返す関数（bytes,ctx）→{bytes,filename,mimeType}
 const XLSX_FILLERS = {
-  'OSAKA_INTERASIA': { filler: fillInterasiaOsakaXlsx, defKey: 'OSAKA_INTERASIA', mailTo: 'osaka_empty@kamigumi.co.jp', subjectPrefix: 'IAL-Booking No,' },
+  'OSAKA_INTERASIA': { filler: fillInterasiaOsakaXlsx, defKey: 'OSAKA_INTERASIA', mailTo: 'osaka_empty@kamigumi.co.jp',
+    subject: ctx => `IAL-Booking No, ${ctx.bkgNo} ピックアップオーダーのご送付` },
   'OSAKA_YANGMING':  { filler: fillYangmingOsakaXlsx,  defKey: 'OSAKA_YANGMING',  mailTo: 'export_osaka_c9@mitsui-koun.co.jp',
     subject: ctx => `[ピックアップオーダー送付 1件 BKG NO.${ctx.bkgNo}] ${ctx.vslName || ''} ${mdDow(ctx.pickupDate)}~ PICK UP 希望`,
     extraFile: async (bytes, ctx) => {
