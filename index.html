@@ -1512,6 +1512,7 @@ async function fillInterasiaOsakaXlsx(bytes, ctx){
   xml = xlsxSetStringCell(xml, 'E12',  ctx.pod     || '');   // 陸揚港
   xml = xlsxSetStringCell(xml, 'AE12', ctx.pod     || '');   // 最終仕向地
   xml = xlsxSetStringCell(xml, 'H13',  ctx.bkgNo   || '');   // Booking No.
+  xml = xlsxSetStringCell(xml, 'E14',  ctx.itemName || 'WASTE PAPER'); // 品名
   if(ctx.pickupDate) xml = xlsxSetNumberCell(xml, 'E15', toExcelSerial(ctx.pickupDate)); // 引取日
   if(ctx.containerQty) xml = xlsxSetNumberCell(xml, 'F21', Number(ctx.containerQty));    // 40'(9'6")本数
   if(ctx.staffName){
@@ -1533,6 +1534,7 @@ async function fillYangmingOsakaXlsx(bytes, ctx){
   xml = xlsxSetStringCell(xml, 'M20', ctx.bkgNo   || '');   // BOOKING NO.
   xml = xlsxSetStringCell(xml, 'F24', ctx.pod     || '');   // PORT of DISCHARGE
   xml = xlsxSetStringCell(xml, 'S24', ctx.pod     || '');   // FINAL DESTINATION
+  xml = xlsxSetStringCell(xml, 'E23', ctx.itemName || 'WASTE PAPER'); // 品名
   if(ctx.pickupDate)    xml = xlsxSetNumberCell(xml, 'B30', toExcelSerial(ctx.pickupDate));  // PICK日
   if(ctx.containerQty)  xml = xlsxSetNumberCell(xml, 'G34', Number(ctx.containerQty));       // 40'HQ(DRY)本数
   if(ctx.staffName)     xml = xlsxSetStringCell(xml, 'F12', ctx.staffName);                  // 御担当者名
@@ -1619,7 +1621,7 @@ function buildYangmingFormHtml(ctx, terminal){
       <tr><td style="${td}width:110px;">新規</td><td style="${td}width:150px;">BOOKING NO.</td><td style="${td}font-weight:700;">${esc(ctx.bkgNo)}</td></tr>
       <tr><td style="${td}">VESSEL</td><td style="${td}font-weight:700;">${esc(ctx.vslName)}</td><td style="${td}">VOY NO.　<b>${esc(ctx.voyNo)}</b></td></tr>
       <tr><td style="${td}">SHIPPER</td><td style="${td}font-weight:700;" colspan="2">LEENEAR CORPORATION</td></tr>
-      <tr><td style="${td}">品名</td><td style="${td}font-weight:700;">WASTE PAPER</td><td style="${td}">荷姿　<b>BALES</b></td></tr>
+      <tr><td style="${td}">品名</td><td style="${td}font-weight:700;">${esc(ctx.itemName || 'WASTE PAPER')}</td><td style="${td}">荷姿　<b>BALES</b></td></tr>
       <tr><td style="${td}">PORT of DISCHARGE</td><td style="${td}font-weight:700;">${esc(ctx.pod)}</td><td style="${td}">FINAL DESTINATION</td></tr>
     </table>
     <div style="font-size:12px;font-weight:700;margin-bottom:4px;">※該当欄に必要本数を記入して下さい。</div>
@@ -2420,7 +2422,8 @@ async function searchBkg(){
         carrierKey:   matchedKey,
         memo:         isTatsumiOsaka ? '恐れ入りますが、受領後ご返信をお願いいたします。' : '', // 辰巳商会フォームの「要望事項」欄デフォルト文言
         dischargePort: 'KAOHSIUNG', // 陸揚港（T/S）欄。TOKYO YANGMINGフォームのみ使用、通常はKAOHSIUNG T/S固定だが編集可
-        staffName:    getStaffName() // 担当者名欄。ログイン中のCOMPASSアカウント名をデフォルトにし、編集可能
+        staffName:    getStaffName(), // 担当者名欄。ログイン中のCOMPASSアカウント名をデフォルトにし、編集可能
+        itemName:     'WASTE PAPER' // 品名欄。YANGMING/INTERASIA大阪フォームで使用。通常はWASTE PAPERだがUSED CLOTH等に編集可
       };
       html += contactBoxHtml(firstCard);
       html += `<div class="edit-box">
@@ -2444,6 +2447,12 @@ async function searchBkg(){
           </label>
           <label>担当者名
             <input type="text" id="editStaffName" value="${lastBkgContext.staffName}" oninput="updateBkgField('staffName', this.value)">
+          </label>
+          <label>品名
+            <select id="editItemName" onchange="updateBkgField('itemName', this.value)">
+              <option value="WASTE PAPER" selected>WASTE PAPER</option>
+              <option value="USED CLOTH">USED CLOTH</option>
+            </select>
           </label>
         </div>
         ${matchedPort === 'TOKYO' && matchedKey === 'YANGMING' ? `
