@@ -283,9 +283,39 @@
 
   footer{border-top:1px solid var(--border);padding:18px 24px;text-align:center;color:var(--text3);font-size:11px;letter-spacing:1px;}
   footer span{color:var(--accent);}
+
+  /* ── ログインゲート（未ログイン時はこれ以外何も表示しない） ── */
+  #appShell.hidden{display:none!important;}
+  #lockScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:100vh;background:var(--bg);padding:24px;text-align:center;}
+  #lockScreen.hidden{display:none!important;}
+  .lock-logo{font-size:34px;font-weight:800;letter-spacing:2px;color:var(--text);}
+  .lock-logo-accent{color:var(--accent);}
+  .lock-badge{background:var(--accent);color:#fff;font-size:11px;font-weight:700;letter-spacing:1px;padding:4px 14px;border-radius:20px;margin-top:2px;}
+  .lock-title{color:var(--text2);font-size:13px;margin-top:8px;}
+  .lock-divider{width:40px;height:1px;background:var(--border);margin:12px 0;}
+  .lock-desc{color:var(--text3);font-size:12px;line-height:1.8;margin-bottom:10px;}
+  .lock-login-btn{padding:12px 28px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;}
+  .lock-login-btn:hover{opacity:.85;}
+  .lock-loading{display:flex;align-items:center;gap:8px;color:var(--text2);font-size:13px;}
+  .lock-error{color:var(--danger);font-size:12px;max-width:320px;}
 </style>
 </head>
 <body>
+
+<!-- ══ ログインゲート画面（未ログイン時はこれだけ表示） ══ -->
+<div id="lockScreen">
+  <div class="lock-logo">LEEN<span class="lock-logo-accent">AI</span></div>
+  <div class="lock-badge">SYS-P-01</div>
+  <div class="lock-title">P/O申請ガイド ／ ピックアップオーダー申請ツール</div>
+  <div class="lock-divider"></div>
+  <div class="lock-desc" id="lockDesc">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
+  <button class="lock-login-btn" id="lockLoginBtn" onclick="startLogin()">🔑 COMPASSログイン</button>
+  <div class="lock-loading hidden" id="lockLoading"><div class="spinner"></div>認証中...</div>
+  <div class="lock-error hidden" id="lockError"></div>
+</div>
+
+<!-- ══ アプリ本体（ログイン成功後のみ表示） ══ -->
+<div id="appShell" class="hidden">
 
 <!-- ══ HEADER ══ -->
 <header>
@@ -777,6 +807,8 @@
 
 <footer>✦ Powered by <span>LEENAI Automation System</span> &nbsp;|&nbsp; LEENEAR CORPORATION &nbsp;|&nbsp; 社内資料・社外秘</footer>
 
+</div><!-- /#appShell -->
+
 <script>
 // ════════════════════════════════════════════
 // テーマ切替（ダーク／ライト）
@@ -875,8 +907,8 @@ async function handleCallback(){
   if(!code) return;
   history.replaceState({}, '', location.pathname);
   const verifier = sessionStorage.getItem('pkce_v');
-  if(!verifier){ alert('セッション切れ。再ログインしてください。'); return; }
-  showResult('<div class="loading-box"><div class="spinner"></div>認証中...</div>');
+  if(!verifier){ showLockError('セッション切れ。再ログインしてください。'); return; }
+  showLockLoading();
   try {
     const res = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{
       method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
@@ -898,10 +930,27 @@ async function handleCallback(){
     S.sessionExpiry = Date.now() + SESSION_TTL_MS;
     saveSession();
     setLoggedIn();
-    hideResult();
   } catch(e) {
-    showResult(`<div class="error-box">認証エラー: ${e.message}</div>`);
+    showLockError('認証エラー: ' + e.message);
   }
+}
+
+// ── ログインゲート画面の表示切替 ──
+function showLockLoading(){
+  document.getElementById('lockLoginBtn').classList.add('hidden');
+  document.getElementById('lockLoading').classList.remove('hidden');
+  document.getElementById('lockError').classList.add('hidden');
+}
+function showLockError(msg){
+  document.getElementById('lockLoading').classList.add('hidden');
+  document.getElementById('lockLoginBtn').classList.remove('hidden');
+  const el = document.getElementById('lockError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function unlockApp(){
+  document.getElementById('lockScreen').classList.add('hidden');
+  document.getElementById('appShell').classList.remove('hidden');
 }
 
 // ── 保存済みセッションの復元（24時間以内なら再ログイン不要）──
@@ -922,6 +971,7 @@ async function restoreSession(){
 }
 
 function setLoggedIn(){
+  unlockApp();
   document.getElementById('loginBtn').classList.add('hidden');
   document.getElementById('logoutBtn').classList.remove('hidden');
   document.getElementById('loginHint').classList.add('hidden');
