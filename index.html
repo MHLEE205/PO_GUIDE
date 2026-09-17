@@ -411,13 +411,13 @@
       </div>
       <div class="card-body">
         <div class="card-row"><div class="card-key">宛先</div><div class="card-val">三井倉庫港運 南港C-9</div></div>
-        <div class="card-row"><div class="card-key">メール</div><div class="card-val"><a href="mailto:export_osaka_c9@mitsui-koun.co.jp">export_osaka_c9@mitsui-koun.co.jp</a></div></div>
+        <div class="card-row"><div class="card-key">メール</div><div class="card-val"><a href="mailto:export_osaka_c9@mitsui-koun.co.jp?cc=rcp@leenearcorp.com">export_osaka_c9@mitsui-koun.co.jp</a></div></div>
         <div class="card-row"><div class="card-key">件名</div><div class="card-val"><code>[ピックアップオーダー送付 1件 BKG NO.xxx] 船名 M/D(曜)~ PICK UP 希望</code></div></div>
         <div class="card-row"><div class="card-key">添付</div><div class="card-val">YANGMING_OSAKA.xlsx（ターミナル使用欄B55/B56は空白）＋ PDF（搬出先・搬入先記入済、ファイル名：PO(ブッキング番号).pdf）／同フォルダに別途保存</div></div>
       </div>
       <div class="card-footer">
         <a class="btn btn-mail" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX" target="_blank">📥 Excelフォーム</a>
-        <a class="btn btn-mail" href="mailto:export_osaka_c9@mitsui-koun.co.jp">✉ メール作成</a>
+        <a class="btn btn-mail" href="mailto:export_osaka_c9@mitsui-koun.co.jp?cc=rcp@leenearcorp.com">✉ メール作成</a>
       </div>
     </div>
 
@@ -429,13 +429,13 @@
       </div>
       <div class="card-body">
         <div class="card-row"><div class="card-key">宛先</div><div class="card-val">上組 南港C-9</div></div>
-        <div class="card-row"><div class="card-key">メール</div><div class="card-val"><a href="mailto:osaka_empty@kamigumi.co.jp">osaka_empty@kamigumi.co.jp</a></div></div>
+        <div class="card-row"><div class="card-key">メール</div><div class="card-val"><a href="mailto:osaka_empty@kamigumi.co.jp?cc=rcp@leenearcorp.com">osaka_empty@kamigumi.co.jp</a></div></div>
         <div class="card-row"><div class="card-key">件名</div><div class="card-val"><code>IAL-Booking No.xxx 船名 M/D(曜)~ PICK UP 希望</code></div></div>
         <div class="card-row"><div class="card-key">添付</div><div class="card-val">INTERASIA_OSAKA.xlsx</div></div>
       </div>
       <div class="card-footer">
         <a class="btn btn-mail" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX" target="_blank">📥 Excelフォーム</a>
-        <a class="btn btn-mail" href="mailto:osaka_empty@kamigumi.co.jp">✉ メール作成</a>
+        <a class="btn btn-mail" href="mailto:osaka_empty@kamigumi.co.jp?cc=rcp@leenearcorp.com">✉ メール作成</a>
       </div>
     </div>
 
@@ -1732,10 +1732,10 @@ function refreshCardContacts(contacts){
     addContactEditButton(card, card.dataset.port, card.dataset.carrierKey);
     if(!c) return;
 
-    // メールアドレス（mailtoリンク）の更新
+    // メールアドレス（mailtoリンク）の更新。CCには常にDEFAULT_CCを含める
     if(c.to){
       card.querySelectorAll('a[href^="mailto:"]').forEach(a=>{
-        a.href = `mailto:${c.to}`;
+        a.href = buildMailtoHref(c.to, isMeaningfulTo2(c.cc) ? c.cc : '');
         if(!a.classList.contains('btn')) a.textContent = c.to;
       });
     }
@@ -1800,7 +1800,7 @@ function getCardFallback(card){
   const mailLink = card.querySelector('a[href^="mailto:"]');
   return {
     name: nameRow ? (nameRow.querySelector('.card-val')?.textContent || '').trim() : '',
-    to: mailLink ? mailLink.getAttribute('href').replace('mailto:','') : ''
+    to: mailLink ? mailLink.getAttribute('href').replace('mailto:','').split('?')[0] : ''
   };
 }
 
@@ -2111,6 +2111,29 @@ let _pendingMail = null;
 // メール本文末尾に付与するデフォルト署名
 const MAIL_SIGNATURE = `株式会社リニア (Leenear Corporation)\nE-mail: rcp@leenearcorp.com\nTel. +81-3-3528-9850  Fax. +81-3-3528-9851\n\n✦ Powered by LEENAI Automation System`;
 
+// すべてのP/O関連メールに必ずCCで含める社内代表アドレス
+const DEFAULT_CC = 'rcp@leenearcorp.com';
+
+// 船社ごとのCC(あれば)にDEFAULT_CCを重複なく追加した、カンマ区切りのCCリストを返す
+function withDefaultCc(extraCc){
+  const seen = new Set();
+  const list = [];
+  const add = a => {
+    a = (a||'').trim();
+    if(!a || seen.has(a.toLowerCase())) return;
+    seen.add(a.toLowerCase());
+    list.push(a);
+  };
+  if(extraCc) extraCc.split(',').forEach(add);
+  add(DEFAULT_CC);
+  return list.join(', ');
+}
+
+// DEFAULT_CCを含んだmailto:リンクを生成
+function buildMailtoHref(to, extraCc){
+  return `mailto:${to}?cc=${encodeURIComponent(withDefaultCc(extraCc))}`;
+}
+
 async function prepareXlsxMail(fileIndex, def, btnEl){
   const file = _foundFormFiles[fileIndex];
   const origLabel = btnEl.innerHTML;
@@ -2122,7 +2145,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
     const contact = def.defKey ? ((_poContacts||{})[def.defKey]||{}) : {};
     _pendingMail = {
       to: contact.to || def.mailTo || '',
-      cc: contact.cc || 'rcp@leenearcorp.com',
+      cc: withDefaultCc(contact.cc),
       subject: def.subject ? def.subject(lastBkgContext) : `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
       body: `お世話になっております。\n\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\n\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。\n\n\n${MAIL_SIGNATURE}`,
       bytes: filled,
