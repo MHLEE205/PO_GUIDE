@@ -556,13 +556,12 @@
       </div>
       <div class="card-body">
         <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">078-306-3920</strong></div></div>
-        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">CNC KOBE_古紙.pdf / CNC KOBE_古着.pdf（品種で選択）</div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">CNC KOBE_古紙.pdf</div></div>
         <div class="card-row"><div class="card-key">自動入力</div><div class="card-val">本船名・航海番号・CY-CUT日（月/日）・BOOKING NO.・仕向地・40'本数・搬出希望日（月/日/曜日）</div></div>
-        <div class="card-row"><div class="card-key">⚠ 注意</div><div class="card-val"><span class="tag-warn">品種別2種</span> 古紙・古着でPDFが異なる</div></div>
+        <div class="card-row"><div class="card-key">品名</div><div class="card-val">「送信前に確認・修正」の品名欄でWASTE PAPER／USED CLOTHを選択可（USED CLOTH選択時はPDF印字を自動で上書き）</div></div>
       </div>
       <div class="card-footer">
-        <a class="btn btn-fax" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📥 古紙フォーム</a>
-        <a class="btn btn-fax" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📥 古着フォーム</a>
+        <a class="btn btn-fax" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📥 PDFフォーム</a>
       </div>
     </div>
 
@@ -723,7 +722,7 @@
       <h3><span>⚠️</span> 注意事項</h3>
       <ul class="note-list">
         <li>ピックアップ希望日 = CY OPEN前1営業日（土日祝は遡及）</li>
-        <li>CNC神戸は古紙・古着でPDF別。品種確認必須</li>
+        <li>CNC神戸／HEUNG-A神戸は品名欄（WASTE PAPER/USED CLOTH）で品種を選択</li>
         <li>FAX返信あり：DONGJIN(大阪)・NAMSUNG/DONG YOUNG/TS LINE(神戸)</li>
         <li>YANGMING：Excel（B55/B56空白）とPDF（搬出先記入済）の2ファイル</li>
       </ul>
@@ -1257,6 +1256,12 @@ async function fillCncKobePdf(bytes, ctx){
   };
   const pickup = mdParts(ctx.pickupDate);
   const cut    = mdParts(ctx.cyCut);
+  // 品名欄（フォーム自体に「WASTE PAPER(古紙)」が印字済みのため、USED CLOTH選択時のみ白塗りして上書きする。
+  // 古着専用PDFは廃止されたため、この上書きが唯一の品目切替手段）
+  if((ctx.itemName || '').toUpperCase() === 'USED CLOTH'){
+    page.drawRectangle({ x: 227, y: 528, width: 121, height: 15, color: rgb(1,1,1) });
+    draw('USED CLOTH', 227.6, 529.5, 11);
+  }
   draw(ctx.voyNo ? `${ctx.vslName}  VOY ${ctx.voyNo}` : ctx.vslName, 232, 620, 11); // 本船名／VOY NO.欄（1セル共用）
   draw(ctx.bkgNo,   232, 584, 11);
   draw(ctx.pod,     280, 565.5, 11);
