@@ -259,6 +259,7 @@
   .ce-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999;padding:16px;}
   .ce-overlay[hidden]{display:none;}
   .ce-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;width:380px;max-width:100%;box-sizing:border-box;}
+  .ce-box-handle{cursor:move;user-select:none;}
   .ce-box h3{font-size:14px;margin:0 0 4px;color:var(--text);}
   .ce-box .ce-sub{font-size:11px;color:var(--text2);margin-bottom:12px;}
   .ce-box label{display:block;font-size:11px;color:var(--text2);font-weight:600;margin-top:10px;margin-bottom:4px;}
@@ -782,9 +783,11 @@
 
 <!-- 船社連絡先 編集モーダル。PO EXCEL.xlsx（OneDrive）を直接書き換える -->
 <div class="ce-overlay" id="ceOverlay" hidden>
-  <div class="ce-box">
-    <h3 id="ceTitle">連絡先を編集</h3>
-    <div class="ce-sub">保存するとPO EXCEL.xlsx（OneDrive）に直接反映されます。</div>
+  <div class="ce-box" id="ceBox">
+    <div class="ce-box-handle" onmousedown="ceDragStart(event)">
+      <h3 id="ceTitle">連絡先を編集</h3>
+      <div class="ce-sub">保存するとPO EXCEL.xlsx（OneDrive）に直接反映されます。</div>
+    </div>
     <label>申込方法
       <select id="ceMethod" onchange="updateCeLabels()">
         <option value="メール">メール</option>
@@ -1742,7 +1745,7 @@ function refreshCardContacts(contacts){
     const faxNoRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX No.'));
     const faxToRow = rows.find(r => r.querySelector('.card-key')?.textContent.includes('FAX先'));
     if(faxNoRow && c.to){
-      const faxNos = [c.to, c.to2].filter(Boolean);
+      const faxNos = [c.to, isMeaningfulTo2(c.to2) ? c.to2 : ''].filter(Boolean);
       const val = faxNoRow.querySelector('.card-val');
       if(val) val.innerHTML = `<strong style="color:var(--text)">${escapeXmlText(faxNos.join(' / '))}</strong>`;
     }
@@ -1777,20 +1780,71 @@ function addContactEditButton(card, port, carrierKey){
 // ════════════════════════════════════════════
 let _ceTarget = null; // { port, carrierKey }
 
+// FAX番号2／CCが実際に意味のある値かを判定（過去の誤保存で紛れ込んだ端数の数字などを除外）
+function isMeaningfulTo2(v){
+  if(!v) return false;
+  v = v.trim();
+  if(!v) return false;
+  if(v.includes('@')) return true; // CCメールアドレス
+  return v.replace(/\D/g,'').length >= 8; // FAX番号として妥当な桁数（8桁以上）
+}
+
+// カードに現在表示されている宛先名／連絡先を、Excel側が未入力の場合のフォールバック値として取得
+function getCardFallback(card){
+  if(!card) return { name:'', to:'' };
+  const rows = Array.from(card.querySelectorAll('.card-row'));
+  const nameRow = rows.find(r => {
+    const k = r.querySelector('.card-key')?.textContent || '';
+    return k.includes('FAX先') || k.includes('宛先');
+  });
+  const mailLink = card.querySelector('a[href^="mailto:"]');
+  return {
+    name: nameRow ? (nameRow.querySelector('.card-val')?.textContent || '').trim() : '',
+    to: mailLink ? mailLink.getAttribute('href').replace('mailto:','') : ''
+  };
+}
+
 function openContactEditor(port, carrierKey){
   const key = `${port.toUpperCase()}_${carrierKey.toUpperCase().replace(/[\s\-]/g,'')}`;
   const c = (_poContacts && _poContacts[key]) || { method:'', to:'', to2:'', name:'' };
+  const card = document.querySelector(`.card[data-port="${port}"][data-carrier-key="${carrierKey}"]`);
+  const fallback = getCardFallback(card);
   _ceTarget = { port, carrierKey };
   document.getElementById('ceTitle').textContent = `連絡先を編集 — ${port} / ${carrierKey}`;
-  document.getElementById('ceMethod').value = c.method.toUpperCase().includes('FAX') ? 'FAX' : 'メール';
-  document.getElementById('ceTo').value = c.to || '';
-  document.getElementById('ceTo2').value = c.to2 || '';
-  document.getElementById('ceName').value = c.name || '';
+  document.getElementById('ceMethod').value = (c.method||'').toUpperCase().includes('FAX') ? 'FAX' : 'メール';
+  document.getElementById('ceTo').value = c.to || fallback.to || '';
+  document.getElementById('ceTo2').value = isMeaningfulTo2(c.to2) ? c.to2 : '';
+  document.getElementById('ceName').value = c.name || fallback.name || '';
   document.getElementById('ceMsg').textContent = '';
   document.getElementById('ceMsg').className = 'ce-msg';
   document.getElementById('ceSaveBtn').disabled = false;
   updateCeLabels();
+  document.getElementById('ceBox').style.transform = '';
   document.getElementById('ceOverlay').hidden = false;
+}
+
+// ── 連絡先編集モーダルのドラッグ移動 ──
+let _ceDrag = null;
+function ceDragStart(e){
+  if(e.target.closest('button, select, input')) return;
+  const box = document.getElementById('ceBox');
+  const style = getComputedStyle(box);
+  const matrix = new DOMMatrixReadOnly(style.transform === 'none' ? undefined : style.transform);
+  _ceDrag = { startX:e.clientX, startY:e.clientY, baseX:matrix.m41, baseY:matrix.m42 };
+  document.addEventListener('mousemove', ceDragMove);
+  document.addEventListener('mouseup', ceDragEnd);
+  e.preventDefault();
+}
+function ceDragMove(e){
+  if(!_ceDrag) return;
+  const dx = e.clientX - _ceDrag.startX;
+  const dy = e.clientY - _ceDrag.startY;
+  document.getElementById('ceBox').style.transform = `translate(${_ceDrag.baseX+dx}px, ${_ceDrag.baseY+dy}px)`;
+}
+function ceDragEnd(){
+  _ceDrag = null;
+  document.removeEventListener('mousemove', ceDragMove);
+  document.removeEventListener('mouseup', ceDragEnd);
 }
 
 // 申込方法（メール／FAX）に応じて宛先1・宛先2の入力ラベルを切り替える
