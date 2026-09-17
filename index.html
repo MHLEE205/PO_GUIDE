@@ -2135,8 +2135,12 @@ async function autoFillDirect(port, carrierKey, btnEl){
 // ── Excel自動入力 → 送信前プレビュー ──
 let _pendingMail = null;
 
-// メール本文末尾に付与するデフォルト署名
-const MAIL_SIGNATURE = `株式会社リニア (Leenear Corporation)\nE-mail: rcp@leenearcorp.com\nTel. +81-3-3528-9850  Fax. +81-3-3528-9851\n\n✦ Powered by LEENAI Automation System`;
+// メール本文末尾に付与するデフォルト署名（先頭にログイン中担当者の日本語氏名を付加）
+function buildMailSignature(){
+  const staffName = getStaffName();
+  const namePart = staffName ? `${staffName}\n` : '';
+  return `${namePart}株式会社リニア (Leenear Corporation)\nE-mail: rcp@leenearcorp.com\nTel. +81-3-3528-9850  Fax. +81-3-3528-9851\n\n✦ Powered by LEENAI Automation System`;
+}
 
 // すべてのP/O関連メールに必ずCCで含める社内代表アドレス
 const DEFAULT_CC = 'rcp@leenearcorp.com';
@@ -2174,7 +2178,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
       to: contact.to || def.mailTo || '',
       cc: withDefaultCc(contact.cc),
       subject: def.subject ? def.subject(lastBkgContext) : `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
-      body: `お世話になっております。\n\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\n\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。\n\n\n${MAIL_SIGNATURE}`,
+      body: `お世話になっております。\n\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\n\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。\n\n\n${buildMailSignature()}`,
       bytes: filled,
       filename: `PO(${lastBkgContext.bkgNo}).xlsx`,
       extra
