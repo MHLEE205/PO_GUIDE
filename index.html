@@ -1103,13 +1103,21 @@ function mdDow(dateStr){
 // 日本語テキストをCanvas 2Dでラスタライズ→PNG化しPDFページに埋め込む。
 // pdf-libの標準フォント(WinAnsi)は日本語を描画できないため、既存PDFへの直接描画（drawText）が必要な
 // フォームで日本語を出す場合はこの関数を使う（renderHtmlToPdf()と同じ「ブラウザに描画させる」方式）
-async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0]){
+// rotateDeg: 回転ページ用にdrawTextのrotate相当を再現（0以外の場合、descentのオフセット方向も回転させる）
+// maxWidthPt: 指定した場合、その幅に収まるようフォントサイズを自動縮小する
+async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0], rotateDeg=0, maxWidthPt=null){
   if(!text) return;
   const scale = 4; // 高解像度化して縮小配置しギザギザを防ぐ
-  const fontSpec = `${size*scale}px 'Yu Gothic','Meiryo',sans-serif`;
   const measure = document.createElement('canvas').getContext('2d');
+  let fontSpec = `${size*scale}px 'Yu Gothic','Meiryo',sans-serif`;
   measure.font = fontSpec;
-  const m = measure.measureText(text);
+  let m = measure.measureText(text);
+  if(maxWidthPt && (m.width/scale) > maxWidthPt){
+    size = size * (maxWidthPt / (m.width/scale));
+    fontSpec = `${size*scale}px 'Yu Gothic','Meiryo',sans-serif`;
+    measure.font = fontSpec;
+    m = measure.measureText(text);
+  }
   const ascent  = m.actualBoundingBoxAscent  || size*scale*0.85;
   const descent = m.actualBoundingBoxDescent || size*scale*0.2;
   const padX = 2*scale;
@@ -1125,7 +1133,14 @@ async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0]){
   const pngBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), c => c.charCodeAt(0));
   const png = await pdfDoc.embedPng(pngBytes);
   const descentOffset = (descent + 1) / scale; // 画像下端はベースラインより descent 分下にある
-  page.drawImage(png, { x, y: y - descentOffset, width: w/scale, height: h/scale });
+  const rad = rotateDeg * Math.PI / 180;
+  const opts = {
+    x: x + descentOffset * Math.sin(rad),
+    y: y - descentOffset * Math.cos(rad),
+    width: w/scale, height: h/scale
+  };
+  if(rotateDeg) opts.rotate = PDFLib.degrees(rotateDeg);
+  page.drawImage(png, opts);
 }
 
 // 釜山T/S経由の韓国向け主要港は仕向地に「, KOREA(PUSAN T/S)」を自動付加
@@ -1378,10 +1393,21 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   draw(ctx.vslName, 462.4, 632.4, 14); // 本船名欄
   draw(ctx.voyNo,   462.4, 376.4, 14); // VOY. NO.欄
   draw(ctx.bkgNo,   356.0, 404.4, 14); // BOOKING NO.欄
-  draw(ctx.pod,     355.2, 641.6, 14); // 仕向地欄
+  // 仕向地欄（隣のBOOKING NO.欄まで実測約120pt。PUSAN T/S付加等で長くなる場合はカンマ位置で2行に分ける）
+  const pod = ctx.pod || '';
+  const POD_MAX_WIDTH = 120;
+  if(pod.includes(',') && font.widthOfTextAtSize(pod, 14) > POD_MAX_WIDTH){
+    const idx = pod.indexOf(',');
+    draw(pod.slice(0, idx+1).trim(), 355.2, 641.6, 12);
+    draw(pod.slice(idx+1).trim(),    339.2, 641.6, 12); // 2行目（回転ページのため視覚的な1段下＝x座標を1行分減算）
+  } else {
+    draw(pod, 355.2, 641.6, 14);
+  }
   draw(pickup.month, 284.0, 634.0, 14); // 搬出日欄（月）
   draw(pickup.day,   284.4, 552.4, 14); // 搬出日欄（日）
   if(ctx.containerQty) draw(ctx.containerQty, 180.0, 371.6, 12); // 40'HQ本数欄
+  // 担当者欄（TEL/FAX欄の下、幅約63pt。長い氏名でも収まるようやや小さめのフォントサイズを使用）
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 378, 410, 9, [0.75,0,0], -90, 60);
   return pdfDoc.save();
 }
 
