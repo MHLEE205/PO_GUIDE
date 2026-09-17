@@ -1685,7 +1685,8 @@ async function parseXlsxToRows(bytes){
     for(const cM of rM[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)){
       const idx = xlsxColIdx(cM[1]);
       const vM  = cM[3].match(/<v>([^<]*)<\/v>/);
-      const val = vM ? (cM[2].includes('t="s"') ? (ss[+vM[1]]||'') : vM[1]) : '';
+      const isM = cM[3].match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
+      const val = vM ? (cM[2].includes('t="s"') ? (ss[+vM[1]]||'') : vM[1]) : (isM ? isM[1] : '');
       while(cells.length<=idx) cells.push('');
       cells[idx] = val;
     }
@@ -1725,9 +1726,7 @@ function refreshCardContacts(contacts){
     const port = (card.dataset.port||'').toUpperCase();
     const ck   = (card.dataset.carrierKey||'').toUpperCase().replace(/[\s\-]/g,'');
     const c    = contacts[`${port}_${ck}`];
-    // 連絡先編集ボタンは、Excelからの読み込み値が別船社の行とズレる不具合が未解決のため
-    // 一時的に無効化中（実装自体は温存。原因判明後にaddContactEditButton呼び出しを復活させる）
-    // addContactEditButton(card, card.dataset.port, card.dataset.carrierKey);
+    addContactEditButton(card, card.dataset.port, card.dataset.carrierKey);
     if(!c) return;
 
     // メールアドレス（mailtoリンク）の更新
@@ -1762,7 +1761,6 @@ function refreshCardContacts(contacts){
 }
 
 // カードフッターに「連絡先を編集」ボタンを追加（未追加の場合のみ）
-// 現在呼び出し元(refreshCardContacts)からのコールを一時停止中 — 上記コメント参照
 function addContactEditButton(card, port, carrierKey){
   const footer = card.querySelector('.card-footer');
   if(!footer || footer.querySelector('.contact-edit-btn')) return;
