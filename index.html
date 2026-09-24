@@ -2572,7 +2572,10 @@ async function searchBkg(){
         ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'KMTC') ? `
         <div class="edit-grid" style="margin-top:10px;">
           <label>バン詰め場所
-            <input type="text" id="editVanningPlace" list="vanningPlaceOptions" value="${vanningPlace}" oninput="updateBkgField('vanningPlace', this.value)">
+            <input type="text" id="editVanningPlace" list="vanningPlaceOptions" value="${vanningPlace}"
+              oninput="updateBkgField('vanningPlace', this.value)"
+              onfocus="this.dataset.prevValue=this.value; this.value='';"
+              onblur="if(!this.value.trim()){ this.value=this.dataset.prevValue||''; updateBkgField('vanningPlace', this.value); }">
             <datalist id="vanningPlaceOptions">
               <option value="埼玉県川口市"></option>
               <option value="千葉県船橋市"></option>
