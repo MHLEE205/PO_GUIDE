@@ -565,6 +565,24 @@
       </div>
     </div>
 
+    <div class="card" id="card-COSCO-KOBE" data-port="KOBE" data-carrier="cosco" data-carrier-key="COSCO">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#1a2a3a;color:#93c5fd;">CO</div>
+        <div><div class="carrier-name">COSCO</div><div class="carrier-sub">神戸港</div></div>
+        <span class="method-badge method-fax">📠 FAX</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">FAX先</div><div class="card-val">上組 神戸コンテナーターミナル(PC-18)</div></div>
+        <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">078-306-3920</strong></div></div>
+        <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">COSCO KOBE.pdf（CNC神戸と同一の上組PC-18フォーム）</div></div>
+        <div class="card-row"><div class="card-key">自動入力</div><div class="card-val">本船名・航海番号・CY-CUT日（月/日）・BOOKING NO.・仕向地・40'本数・搬出希望日（月/日/曜日）</div></div>
+        <div class="card-row"><div class="card-key">品名</div><div class="card-val">「送信前に確認・修正」の品名欄でWASTE PAPER／USED CLOTHを選択可（USED CLOTH選択時はPDF印字を自動で上書き）</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-fax" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📥 PDFフォーム</a>
+      </div>
+    </div>
+
     <div class="card" id="card-HEUNGA-KOBE" data-port="KOBE" data-carrier="heung a heung-a heunga" data-carrier-key="HEUNG-A">
       <div class="card-header">
         <div class="carrier-icon" style="background:#2a1f3a;color:#c084f0;">HA</div>
@@ -722,7 +740,7 @@
       <h3><span>⚠️</span> 注意事項</h3>
       <ul class="note-list">
         <li>ピックアップ希望日 = CY OPEN前1営業日（土日祝は遡及）</li>
-        <li>CNC神戸／HEUNG-A神戸は品名欄（WASTE PAPER/USED CLOTH）で品種を選択</li>
+        <li>CNC神戸／HEUNG-A神戸／COSCO神戸は品名欄（WASTE PAPER/USED CLOTH）で品種を選択</li>
         <li>FAX返信あり：DONGJIN(大阪)・NAMSUNG/DONG YOUNG/TS LINE(神戸)</li>
         <li>YANGMING：Excel（B55/B56空白）とPDF（搬出先記入済）の2ファイル</li>
       </ul>
@@ -1236,7 +1254,7 @@ function fillerKey(port, carrierKey, fileName){
   return `${port}_${carrierKey.toUpperCase()}`;
 }
 
-// CNC神戸（古紙）フォームへの自動入力（上組PC-18様式。KOBE HEUNG-Aも同一様式のため共用）
+// CNC神戸（古紙）フォームへの自動入力（上組PC-18様式。KOBE HEUNG-A・KOBE COSCOも同一様式のため共用）
 // 座標は sample/KOBE/CNC KOBE_古紙.pdf と sample/KOBE/HEUNG A KOBE.pdf（実データ入り）をPyMuPDFで解析し、
 // 2026-09-14に再検証・修正（仕向港欄が旧座標(x=340)で実際位置(x≈280)から60pt右にずれていた誤りを修正）
 async function fillCncKobePdf(bytes, ctx){
@@ -1477,6 +1495,7 @@ const PDF_FILLERS = {
   'KOBE_CNC_古紙': fillCncKobePdf,
   'KOBE_CNC_古着': fillCncKobePdf,
   'KOBE_HEUNG-A': fillCncKobePdf, // 上組PC-18向け、CNC神戸と同一様式
+  'KOBE_COSCO': fillCncKobePdf, // 上組PC-18向け、CNC神戸と同一様式（sample/KOBE/COSCO KOBE.pdfで座標一致を確認済み）
   'KOBE_KMTC': fillKmtcKobePdf,
   'KOBE_SINOKOR': fillSinokorKobePdf,
   'OSAKA_HEUNG-A': fillTatsumiOsakaPdf,
@@ -2480,7 +2499,7 @@ async function searchBkg(){
         </div>` : ''}
         ${(() => {
           const isYangmingTokyo = matchedPort === 'TOKYO' && matchedKey === 'YANGMING';
-          const isCncKobeGroup  = matchedPort === 'KOBE' && (matchedKey === 'CNC' || matchedKey === 'HEUNG-A');
+          const isCncKobeGroup  = matchedPort === 'KOBE' && (matchedKey === 'CNC' || matchedKey === 'HEUNG-A' || matchedKey === 'COSCO');
           if(!isYangmingTokyo && !isCncKobeGroup && !isTatsumiOsaka) return '';
           const note = isYangmingTokyo ? 'フォーム右側余白に印字されます。最大6行、改行で行分け'
             : isCncKobeGroup ? '「その他指定事項（危険品、オーバーディメンション等）」欄に印字されます。最大2行、改行で行分け'
