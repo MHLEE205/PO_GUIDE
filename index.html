@@ -1500,7 +1500,7 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   draw(pickup.day,   284.4, 552.4, 14); // 搬出日欄（日）
   if(ctx.containerQty) draw(ctx.containerQty, 180.0, 371.6, 12); // 40'HQ本数欄
   // 担当者欄（TEL/FAX欄の下、幅約63pt。長い氏名でも収まるようやや小さめのフォントサイズを使用）
-  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 381, 408, 8, [0.75,0,0], -90, 60);
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 386, 408, 8, [0.75,0,0], -90, 60);
   // バン詰め場所欄（フォーム自体に「東京都足立区」が印字済みのため、常に白塗りして選択内容で描き直す。
   // 日本語を含むためdrawJpText()でラスタライズ描画する）
   if(ctx.vanningPlace){
