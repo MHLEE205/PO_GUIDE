@@ -1190,7 +1190,7 @@ const PORT_COUNTRY = {
   'DUBAI':'U.A.E.', 'JEBEL ALI':'U.A.E.',
 };
 // 通常は釜山T/S経由の韓国向け港はKWANGYANG/INCHEONのみ「(PUSAN T/S)」を付加（PUSAN自体は直行のため対象外）。
-// KMTC/SINOKOR/HEUNG-A/NAMSUNG/DONG YOUNGは釜山ハブ経由が基本のため、韓国向けなら港を問わず付加する。
+// KMTC/SINOKOR/HEUNG-A/NAMSUNG/DONG YOUNGは全便が釜山ハブ経由のため、仕向地の国を問わず（PUSAN以外なら）付加する。
 // PAN OCEANは直行本船のため「(PUSAN T/S)」を付加しない
 const PUSAN_TS_CITIES = ['KWANGYANG','INCHEON'];
 const ALWAYS_TS_CARRIERS = ['KMTC','SINOKOR','HEUNG-A','HEUNG A','NAMSUNG','DONGYOUNG','DONG YOUNG'];
@@ -1198,13 +1198,13 @@ function applyPusanTs(pod, carrierName){
   const p = (pod||'').trim();
   const pu = p.toUpperCase();
   const country = PORT_COUNTRY[pu];
-  if(!country) return p;
-  if(country !== 'SOUTH KOREA' || pu === 'PUSAN') return `${p}, ${country}`;
+  const withCountry = country ? `${p}, ${country}` : p;
+  if(pu === 'PUSAN') return withCountry;
   const carrier = (carrierName||'').toUpperCase();
-  const isPanOcean = carrier.includes('PAN OCEAN');
+  if(carrier.includes('PAN OCEAN')) return withCountry;
   const isAlwaysTs = ALWAYS_TS_CARRIERS.some(c => carrier.includes(c));
-  const needsTs = !isPanOcean && (isAlwaysTs || PUSAN_TS_CITIES.includes(pu));
-  return needsTs ? `${p}, ${country} (PUSAN T/S)` : `${p}, ${country}`;
+  const needsTs = isAlwaysTs || PUSAN_TS_CITIES.includes(pu);
+  return needsTs ? `${withCountry} (PUSAN T/S)` : withCountry;
 }
 
 // COMPASSの本船名フィールド（例："WECAN 2624W"）から本船名と航海番号を分離
