@@ -1479,8 +1479,9 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   const POD_MAX_WIDTH = 120;
   if(pod.includes(',') && font.widthOfTextAtSize(pod, 14) > POD_MAX_WIDTH){
     const idx = pod.indexOf(',');
-    draw(pod.slice(0, idx+1).trim(), 355.2, 638.6, 12);
-    draw(pod.slice(idx+1).trim(),    339.2, 638.6, 12); // 2行目（回転ページのため視覚的な1段下＝x座標を1行分減算）
+    // 2行になる場合、2行目がバン詰め場所欄に近づきすぎる（回転ページのためx座標が行位置）ため、全体を上方向（x座標を加算）にずらす
+    draw(pod.slice(0, idx+1).trim(), 365.2, 638.6, 12);
+    draw(pod.slice(idx+1).trim(),    349.2, 638.6, 12); // 2行目（回転ページのため視覚的な1段下＝x座標を1行分減算）
   } else {
     draw(pod, 355.2, 638.6, 14);
   }
@@ -1546,10 +1547,11 @@ async function fillYangmingTokyoPdf(bytes, ctx){
   // 担当者名欄（申込会社名/担当者名/電話番号の3行、担当者名は上から2行目）
   if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 160, 217.0, 11);
   // バンニング場所/地名欄（フォーム自体に「埼玉県戸田市」が印字済みのため、常に白塗りして選択内容で描き直す。
+  // 罫線（上端pdf_y≈125.4、下端pdf_y≈97.2）に重ならないよう、白塗り上端と文字位置を罫線より下げて余白を確保。
   // 日本語を含むためdrawJpText()でラスタライズ描画する）
   if(ctx.vanningPlace){
-    page.drawRectangle({ x: 147, y: 98, width: 166, height: 28, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, ctx.vanningPlace, 157.9, 105, 11, [0.75,0,0], 0, 150);
+    page.drawRectangle({ x: 147, y: 98, width: 166, height: 25.5, color: rgb(1,1,1) });
+    await drawJpText(pdfDoc, page, ctx.vanningPlace, 157.9, 101, 11, [0.75,0,0], 0, 150);
   }
   return pdfDoc.save();
 }
