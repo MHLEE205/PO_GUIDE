@@ -685,7 +685,7 @@
     <div class="card" id="card-YANGMING-TOKYO" data-port="TOKYO" data-carrier="yangming yang ming" data-carrier-key="YANGMING">
       <div class="card-header">
         <div class="carrier-icon" style="background:#1a3a5c;color:#5bc4f0;">YM</div>
-        <div><div class="carrier-name">YANG MING</div><div class="carrier-sub">東京港</div></div>
+        <div><div class="carrier-name" style="font-size:15.4px;">YANG MING</div><div class="carrier-sub">東京港</div></div>
         <span class="method-badge method-fax">📠 FAX</span>
       </div>
       <div class="card-body">
@@ -1434,6 +1434,11 @@ async function fillYangmingTokyoPdf(bytes, ctx){
       console.warn('PDF記入をスキップ:', text, e.message);
     }
   };
+  // 貨物名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTH選択時のみ白塗りして上書きする）
+  if((ctx.itemName || '').toUpperCase() === 'USED CLOTH'){
+    page.drawRectangle({ x: 150, y: 483, width: 100, height: 17, color: rgb(1,1,1) });
+    draw('USED CLOTH', 154, 485.5, 11);
+  }
   draw(ctx.bkgNo,   167, 610.7, 11); // BOOKING NO.欄
   draw(ctx.vslName, 169, 583.0, 11); // 本船名欄
   draw(ctx.voyNo,   474, 583.5, 11); // VOY NO.欄
