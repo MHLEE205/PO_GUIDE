@@ -1166,15 +1166,17 @@ async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0], r
   page.drawImage(png, opts);
 }
 
-// 釜山T/S経由の韓国向け主要港は仕向地に「, KOREA(PUSAN T/S)」を自動付加
-// PUSAN自体は釜山T/Sではなく直行のため対象から除外
+// 韓国向け主要港は仕向地に「, SOUTH KOREA」を自動付加。
+// PUSAN以外（KWANGYANG/INCHEON）は釜山T/S経由のため「(PUSAN T/S)」も付加する（PUSAN自体は直行のため対象外）。
+// PAN OCEANはKWANGYANG等へも直行本船のため、船社がPAN OCEANの場合は「(PUSAN T/S)」を付加しない
+const KOREA_CITIES = ['PUSAN','KWANGYANG','INCHEON'];
 const PUSAN_TS_CITIES = ['KWANGYANG','INCHEON'];
-// PAN OCEANはKWANGYANG等へも直行本船のため、船社がPAN OCEANの場合はT/S表記を付加しない
 function applyPusanTs(pod, carrierName){
   const p = (pod||'').trim();
-  if((carrierName||'').toUpperCase().includes('PAN OCEAN')) return p;
-  if(PUSAN_TS_CITIES.includes(p.toUpperCase())) return `${p}, KOREA(PUSAN T/S)`;
-  return p;
+  if(!KOREA_CITIES.includes(p.toUpperCase())) return p;
+  const isPanOcean = (carrierName||'').toUpperCase().includes('PAN OCEAN');
+  const needsTs = PUSAN_TS_CITIES.includes(p.toUpperCase()) && !isPanOcean;
+  return needsTs ? `${p}, SOUTH KOREA (PUSAN T/S)` : `${p}, SOUTH KOREA`;
 }
 
 // COMPASSの本船名フィールド（例："WECAN 2624W"）から本船名と航海番号を分離
