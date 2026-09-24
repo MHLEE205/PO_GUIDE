@@ -1472,6 +1472,7 @@ async function fillYangmingTokyoPdf(bytes, ctx){
 // 新しい船社/港を対応させる場合は、sample PDFをPyMuPDFで解析して座標を求め、ここに追加する
 // 「古着」は「古紙」とレイアウトが同一のテンプレートのため同じ関数を使用（sample/CNC KOBE_古着.pdfの実データで座標一致を確認済み）
 const PDF_FILLERS = {
+  'KOBE_CNC': fillCncKobePdf, // ファイル名に「古紙」「古着」が含まれない現行の統合フォーム用（品目はctx.itemNameで動的に切替）
   'KOBE_CNC_古紙': fillCncKobePdf,
   'KOBE_CNC_古着': fillCncKobePdf,
   'KOBE_HEUNG-A': fillCncKobePdf, // 上組PC-18向け、CNC神戸と同一様式
