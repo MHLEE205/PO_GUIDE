@@ -1283,13 +1283,13 @@ async function fillCncKobePdf(bytes, ctx){
   };
   const pickup = mdParts(ctx.pickupDate);
   const cut    = mdParts(ctx.cyCut);
-  // 品名及び荷姿欄（フォーム自体に「WASTE PAPER(古紙) / BALES」が1行で印字済みのため、
-  // USED CLOTHING(古着)選択時は行全体（「/ BALES」部分含む）を白塗りし、「USED CLOTHING(古着) / BALES」として描き直す
-  // （「/ BALES」は固定のまま、前半の品名部分のみ差し替える。日本語を含むためdrawJpText()でラスタライズ描画する）
-  // 古着専用PDFは廃止されたため、この上書きが唯一の品目切替手段）
-  if((ctx.itemName || '').toUpperCase().startsWith('USED CLOTH')){
+  // 品名及び荷姿欄（フォーム自体に「WASTE PAPER(古紙) / BALES」が印字済みだが、選択内容を必ずPDFに反映するため
+  // WASTE PAPER／USED CLOTHING いずれの場合も白塗りしてから描き直す（「/ BALES」は固定、前半の品名部分のみ切替）。
+  // 日本語を含むためdrawJpText()でラスタライズ描画する。古着専用PDFは廃止されたため、この上書きが唯一の品目切替手段）
+  {
+    const itemLabel = (ctx.itemName || '').toUpperCase().startsWith('USED CLOTH') ? 'USED CLOTHING(古着)' : 'WASTE PAPER(古紙)';
     page.drawRectangle({ x: 225, y: 528, width: 270, height: 15, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, 'USED CLOTHING(古着) / BALES', 227.6, 529.5, 11, [0.75,0,0], 0, 260);
+    await drawJpText(pdfDoc, page, `${itemLabel} / BALES`, 227.6, 529.5, 11, [0.75,0,0], 0, 260);
   }
   draw(ctx.voyNo ? `${ctx.vslName}  VOY ${ctx.voyNo}` : ctx.vslName, 232, 620, 11); // 本船名／VOY NO.欄（1セル共用）
   draw(ctx.bkgNo,   232, 584, 11);
@@ -1331,12 +1331,13 @@ async function fillTatsumiOsakaPdf(bytes, ctx){
   };
   const pickup = mdParts(ctx.pickupDate);
   const cut    = mdParts(ctx.cyCut);
-  // 品名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTHING選択時のみ白塗りして上書きする。
-  // HEUNG-A/KMTC/SINOKOR/NAMSUNG/DONG YOUNG/PAN OCEANの各PDFで罫線位置を実測し、共通して安全な範囲を採用。
-  // 日本語を含むためdrawJpText()でラスタライズ描画する）
-  if((ctx.itemName || '').toUpperCase().startsWith('USED CLOTH')){
+  // 品名欄（フォーム自体に「WASTE PAPER」が印字済みだが、選択内容を必ずPDFに反映するためWASTE PAPER／USED CLOTHING
+  // いずれの場合も白塗りしてから描き直す。HEUNG-A/KMTC/SINOKOR/NAMSUNG/DONG YOUNG/PAN OCEANの各PDFで
+  // 罫線位置を実測し、共通して安全な範囲を採用。日本語を含むためdrawJpText()でラスタライズ描画する）
+  {
+    const itemLabel = (ctx.itemName || '').toUpperCase().startsWith('USED CLOTH') ? 'USED CLOTHING(古着)' : 'WASTE PAPER(古紙)';
     page.drawRectangle({ x: 185, y: 209.2, width: 300, height: 16.8, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, 'USED CLOTHING(古着)', 193.9, 211, 11, [0.75,0,0], 0, 290);
+    await drawJpText(pdfDoc, page, itemLabel, 193.9, 211, 11, [0.75,0,0], 0, 290);
   }
   draw(ctx.vslName, 185, 584.5, 11);
   draw(ctx.voyNo,   185, 565.2, 11);
@@ -1431,12 +1432,14 @@ async function fillKmtcTokyoPdf(bytes, ctx){
     }
   };
   const pickup = mdParts(ctx.pickupDate);
-  // 品名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTHING選択時のみ白塗りして上書きする。
-  // 「USED CLOTHING(古着)」は「WASTE PAPER」より長いため、白塗り範囲を下方向（回転ページのため実質的な文字送り方向）に大きく拡張。
-  // 次の印字欄（40'HQ本数欄）まで十分な余白があるため安全。日本語を含むためdrawJpText()でラスタライズ描画する）
-  if((ctx.itemName || '').toUpperCase().startsWith('USED CLOTH')){
+  // 品名欄（フォーム自体に「WASTE PAPER」が印字済みだが、選択内容を必ずPDFに反映するためWASTE PAPER／USED CLOTHING
+  // いずれの場合も白塗りしてから描き直す。「USED CLOTHING(古着)」は「WASTE PAPER」より長いため、白塗り範囲を下方向
+  // （回転ページのため実質的な文字送り方向）に大きく拡張。次の印字欄（40'HQ本数欄）まで十分な余白があるため安全。
+  // 日本語を含むためdrawJpText()でラスタライズ描画する）
+  {
+    const itemLabel = (ctx.itemName || '').toUpperCase().startsWith('USED CLOTH') ? 'USED CLOTHING(古着)' : 'WASTE PAPER(古紙)';
     page.drawRectangle({ x: 207, y: 468, width: 25, height: 158.4, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, 'USED CLOTHING(古着)', 214.3, 621.7, 14, [0.75,0,0], -90, 150);
+    await drawJpText(pdfDoc, page, itemLabel, 214.3, 621.7, 14, [0.75,0,0], -90, 150);
   }
   draw(ctx.vslName, 462.4, 632.4, 14); // 本船名欄
   draw(ctx.voyNo,   462.4, 376.4, 14); // VOY. NO.欄
@@ -1477,12 +1480,13 @@ async function fillYangmingTokyoPdf(bytes, ctx){
       console.warn('PDF記入をスキップ:', text, e.message);
     }
   };
-  // 貨物名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTHING選択時のみ白塗りして上書きする。
-  // 「USED CLOTHING(古着)」に合わせて白塗り幅を拡張（右側は次の印字欄まで余白があるため安全）。
+  // 貨物名欄（フォーム自体に「WASTE PAPER」が印字済みだが、選択内容を必ずPDFに反映するためWASTE PAPER／USED CLOTHING
+  // いずれの場合も白塗りしてから描き直す。「USED CLOTHING(古着)」に合わせて白塗り幅を拡張（右側は次の印字欄まで余白があるため安全）。
   // 日本語を含むためdrawJpText()でラスタライズ描画する）
-  if((ctx.itemName || '').toUpperCase().startsWith('USED CLOTH')){
+  {
+    const itemLabel = (ctx.itemName || '').toUpperCase().startsWith('USED CLOTH') ? 'USED CLOTHING(古着)' : 'WASTE PAPER(古紙)';
     page.drawRectangle({ x: 150, y: 483, width: 190, height: 17, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, 'USED CLOTHING(古着)', 154, 485.5, 11, [0.75,0,0], 0, 180);
+    await drawJpText(pdfDoc, page, itemLabel, 154, 485.5, 11, [0.75,0,0], 0, 180);
   }
   draw(ctx.bkgNo,   167, 610.7, 11); // BOOKING NO.欄
   draw(ctx.vslName, 169, 583.0, 11); // 本船名欄
