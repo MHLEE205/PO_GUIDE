@@ -1395,6 +1395,11 @@ async function fillKmtcTokyoPdf(bytes, ctx){
     }
   };
   const pickup = mdParts(ctx.pickupDate);
+  // 品名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTH選択時のみ白塗りして上書きする）
+  if((ctx.itemName || '').toUpperCase() === 'USED CLOTH'){
+    page.drawRectangle({ x: 207, y: 527.4, width: 25, height: 99, color: rgb(1,1,1) });
+    draw('USED CLOTH', 214.3, 621.7, 14);
+  }
   draw(ctx.vslName, 462.4, 632.4, 14); // 本船名欄
   draw(ctx.voyNo,   462.4, 376.4, 14); // VOY. NO.欄
   draw(ctx.bkgNo,   356.0, 404.4, 14); // BOOKING NO.欄
