@@ -558,7 +558,7 @@
         <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">078-306-3920</strong></div></div>
         <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">CNC KOBE_古紙.pdf</div></div>
         <div class="card-row"><div class="card-key">自動入力</div><div class="card-val">本船名・航海番号・CY-CUT日（月/日）・BOOKING NO.・仕向地・40'本数・搬出希望日（月/日/曜日）</div></div>
-        <div class="card-row"><div class="card-key">品名</div><div class="card-val">「送信前に確認・修正」の品名欄でWASTE PAPER／USED CLOTHを選択可（USED CLOTH選択時はPDF印字を自動で上書き）</div></div>
+        <div class="card-row"><div class="card-key">品名</div><div class="card-val">「送信前に確認・修正」の品名欄でWASTE PAPER(古紙)／USED CLOTHING(古着)を選択可（USED CLOTHING選択時はPDF印字を自動で上書き）</div></div>
       </div>
       <div class="card-footer">
         <a class="btn btn-fax" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📥 PDFフォーム</a>
@@ -576,7 +576,7 @@
         <div class="card-row"><div class="card-key">FAX No.</div><div class="card-val"><strong style="color:var(--text)">078-306-3920</strong></div></div>
         <div class="card-row"><div class="card-key">フォーム</div><div class="card-val">COSCO KOBE.pdf（CNC神戸と同一の上組PC-18フォーム）</div></div>
         <div class="card-row"><div class="card-key">自動入力</div><div class="card-val">本船名・航海番号・CY-CUT日（月/日）・BOOKING NO.・仕向地・40'本数・搬出希望日（月/日/曜日）</div></div>
-        <div class="card-row"><div class="card-key">品名</div><div class="card-val">「送信前に確認・修正」の品名欄でWASTE PAPER／USED CLOTHを選択可（USED CLOTH選択時はPDF印字を自動で上書き）</div></div>
+        <div class="card-row"><div class="card-key">品名</div><div class="card-val">「送信前に確認・修正」の品名欄でWASTE PAPER(古紙)／USED CLOTHING(古着)を選択可（USED CLOTHING選択時はPDF印字を自動で上書き）</div></div>
       </div>
       <div class="card-footer">
         <a class="btn btn-fax" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📥 PDFフォーム</a>
@@ -740,7 +740,7 @@
       <h3><span>⚠️</span> 注意事項</h3>
       <ul class="note-list">
         <li>ピックアップ希望日 = CY OPEN前1営業日（土日祝は遡及）</li>
-        <li>CNC神戸／HEUNG-A神戸／COSCO神戸は品名欄（WASTE PAPER/USED CLOTH）で品種を選択</li>
+        <li>CNC神戸／HEUNG-A神戸／COSCO神戸は品名欄（WASTE PAPER(古紙)/USED CLOTHING(古着)）で品種を選択</li>
         <li>FAX返信あり：DONGJIN(大阪)・NAMSUNG/DONG YOUNG/TS LINE(神戸)</li>
         <li>YANGMING：Excel（B55/B56空白）とPDF（搬出先記入済）の2ファイル</li>
       </ul>
@@ -1275,11 +1275,12 @@ async function fillCncKobePdf(bytes, ctx){
   const pickup = mdParts(ctx.pickupDate);
   const cut    = mdParts(ctx.cyCut);
   // 品名及び荷姿欄（フォーム自体に「WASTE PAPER(古紙) / BALES」が1行で印字済みのため、
-  // USED CLOTH選択時は行全体（「/ BALES」部分含む）を白塗りし、「USED CLOTH / BALES」として描き直す
-  // （「/ BALES」は固定のまま、前半の品名部分のみ差し替える）。古着専用PDFは廃止されたため、この上書きが唯一の品目切替手段）
-  if((ctx.itemName || '').toUpperCase() === 'USED CLOTH'){
+  // USED CLOTHING(古着)選択時は行全体（「/ BALES」部分含む）を白塗りし、「USED CLOTHING / BALES」として描き直す
+  // （「/ BALES」は固定のまま、前半の品名部分のみ差し替える。標準フォントは日本語非対応のため「(古着)」部分は印字しない）
+  // 古着専用PDFは廃止されたため、この上書きが唯一の品目切替手段）
+  if((ctx.itemName || '').toUpperCase().startsWith('USED CLOTH')){
     page.drawRectangle({ x: 225, y: 528, width: 175, height: 15, color: rgb(1,1,1) });
-    draw('USED CLOTH / BALES', 227.6, 529.5, 11);
+    draw('USED CLOTHING / BALES', 227.6, 529.5, 11);
   }
   draw(ctx.voyNo ? `${ctx.vslName}  VOY ${ctx.voyNo}` : ctx.vslName, 232, 620, 11); // 本船名／VOY NO.欄（1セル共用）
   draw(ctx.bkgNo,   232, 584, 11);
@@ -1414,10 +1415,11 @@ async function fillKmtcTokyoPdf(bytes, ctx){
     }
   };
   const pickup = mdParts(ctx.pickupDate);
-  // 品名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTH選択時のみ白塗りして上書きする）
-  if((ctx.itemName || '').toUpperCase() === 'USED CLOTH'){
-    page.drawRectangle({ x: 207, y: 527.4, width: 25, height: 99, color: rgb(1,1,1) });
-    draw('USED CLOTH', 214.3, 621.7, 14);
+  // 品名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTHING選択時のみ白塗りして上書きする。
+  // 「USED CLOTHING」は「USED CLOTH」より長いため、白塗り範囲を下方向（回転ページのため実質的な文字送り方向）に拡張）
+  if((ctx.itemName || '').toUpperCase().startsWith('USED CLOTH')){
+    page.drawRectangle({ x: 207, y: 503, width: 25, height: 123.4, color: rgb(1,1,1) });
+    draw('USED CLOTHING', 214.3, 621.7, 14);
   }
   draw(ctx.vslName, 462.4, 632.4, 14); // 本船名欄
   draw(ctx.voyNo,   462.4, 376.4, 14); // VOY. NO.欄
@@ -1458,10 +1460,10 @@ async function fillYangmingTokyoPdf(bytes, ctx){
       console.warn('PDF記入をスキップ:', text, e.message);
     }
   };
-  // 貨物名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTH選択時のみ白塗りして上書きする）
-  if((ctx.itemName || '').toUpperCase() === 'USED CLOTH'){
+  // 貨物名欄（フォーム自体に「WASTE PAPER」が印字済みのため、USED CLOTHING選択時のみ白塗りして上書きする）
+  if((ctx.itemName || '').toUpperCase().startsWith('USED CLOTH')){
     page.drawRectangle({ x: 150, y: 483, width: 100, height: 17, color: rgb(1,1,1) });
-    draw('USED CLOTH', 154, 485.5, 11);
+    draw('USED CLOTHING', 154, 485.5, 11);
   }
   draw(ctx.bkgNo,   167, 610.7, 11); // BOOKING NO.欄
   draw(ctx.vslName, 169, 583.0, 11); // 本船名欄
@@ -1548,7 +1550,7 @@ async function fillInterasiaOsakaXlsx(bytes, ctx){
   xml = xlsxSetStringCell(xml, 'E12',  ctx.pod     || '');   // 陸揚港
   xml = xlsxSetStringCell(xml, 'AE12', ctx.pod     || '');   // 最終仕向地
   xml = xlsxSetStringCell(xml, 'H13',  ctx.bkgNo   || '');   // Booking No.
-  xml = xlsxSetStringCell(xml, 'E14',  ctx.itemName || 'WASTE PAPER'); // 品名
+  xml = xlsxSetStringCell(xml, 'E14',  ctx.itemName || 'WASTE PAPER(古紙)'); // 品名
   if(ctx.pickupDate) xml = xlsxSetNumberCell(xml, 'E15', toExcelSerial(ctx.pickupDate)); // 引取日
   if(ctx.containerQty) xml = xlsxSetNumberCell(xml, 'F21', Number(ctx.containerQty));    // 40'(9'6")本数
   if(ctx.staffName){
@@ -1570,7 +1572,7 @@ async function fillYangmingOsakaXlsx(bytes, ctx){
   xml = xlsxSetStringCell(xml, 'M20', ctx.bkgNo   || '');   // BOOKING NO.
   xml = xlsxSetStringCell(xml, 'F24', ctx.pod     || '');   // PORT of DISCHARGE
   xml = xlsxSetStringCell(xml, 'S24', ctx.pod     || '');   // FINAL DESTINATION
-  xml = xlsxSetStringCell(xml, 'E23', ctx.itemName || 'WASTE PAPER'); // 品名
+  xml = xlsxSetStringCell(xml, 'E23', ctx.itemName || 'WASTE PAPER(古紙)'); // 品名
   if(ctx.pickupDate)    xml = xlsxSetNumberCell(xml, 'B30', toExcelSerial(ctx.pickupDate));  // PICK日
   if(ctx.containerQty)  xml = xlsxSetNumberCell(xml, 'G34', Number(ctx.containerQty));       // 40'HQ(DRY)本数
   if(ctx.staffName)     xml = xlsxSetStringCell(xml, 'F12', ctx.staffName);                  // 御担当者名
@@ -1657,7 +1659,7 @@ function buildYangmingFormHtml(ctx, terminal){
       <tr><td style="${td}width:110px;">新規</td><td style="${td}width:150px;">BOOKING NO.</td><td style="${td}font-weight:700;">${esc(ctx.bkgNo)}</td></tr>
       <tr><td style="${td}">VESSEL</td><td style="${td}font-weight:700;">${esc(ctx.vslName)}</td><td style="${td}">VOY NO.　<b>${esc(ctx.voyNo)}</b></td></tr>
       <tr><td style="${td}">SHIPPER</td><td style="${td}font-weight:700;" colspan="2">LEENEAR CORPORATION</td></tr>
-      <tr><td style="${td}">品名</td><td style="${td}font-weight:700;">${esc(ctx.itemName || 'WASTE PAPER')}</td><td style="${td}">荷姿　<b>BALES</b></td></tr>
+      <tr><td style="${td}">品名</td><td style="${td}font-weight:700;">${esc(ctx.itemName || 'WASTE PAPER(古紙)')}</td><td style="${td}">荷姿　<b>BALES</b></td></tr>
       <tr><td style="${td}">PORT of DISCHARGE</td><td style="${td}font-weight:700;">${esc(ctx.pod)}</td><td style="${td}">FINAL DESTINATION</td></tr>
     </table>
     <div style="font-size:12px;font-weight:700;margin-bottom:4px;">※該当欄に必要本数を記入して下さい。</div>
@@ -2459,7 +2461,7 @@ async function searchBkg(){
         memo:         isTatsumiOsaka ? '恐れ入りますが、受領後ご返信をお願いいたします。' : '', // 辰巳商会フォームの「要望事項」欄デフォルト文言
         dischargePort: 'KAOHSIUNG', // 陸揚港（T/S）欄。TOKYO YANGMINGフォームのみ使用、通常はKAOHSIUNG T/S固定だが編集可
         staffName:    getStaffName(), // 担当者名欄。ログイン中のCOMPASSアカウント名をデフォルトにし、編集可能
-        itemName:     'WASTE PAPER' // 品名欄。YANGMING/INTERASIA大阪フォームで使用。通常はWASTE PAPERだがUSED CLOTH等に編集可
+        itemName:     'WASTE PAPER(古紙)' // 品名欄。YANGMING/INTERASIA大阪フォームで使用。通常はWASTE PAPER(古紙)だがUSED CLOTHING(古着)等に編集可
       };
       html += contactBoxHtml(firstCard);
       html += `<div class="edit-box">
@@ -2486,8 +2488,8 @@ async function searchBkg(){
           </label>
           <label>品名
             <select id="editItemName" onchange="updateBkgField('itemName', this.value)">
-              <option value="WASTE PAPER" selected>WASTE PAPER</option>
-              <option value="USED CLOTH">USED CLOTH</option>
+              <option value="WASTE PAPER(古紙)" selected>WASTE PAPER(古紙)</option>
+              <option value="USED CLOTHING(古着)">USED CLOTHING(古着)</option>
             </select>
           </label>
         </div>
