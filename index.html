@@ -1167,7 +1167,8 @@ async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0], r
 }
 
 // 釜山T/S経由の韓国向け主要港は仕向地に「, KOREA(PUSAN T/S)」を自動付加
-const PUSAN_TS_CITIES = ['KWANGYANG','PUSAN','INCHEON'];
+// PUSAN自体は釜山T/Sではなく直行のため対象から除外
+const PUSAN_TS_CITIES = ['KWANGYANG','INCHEON'];
 function applyPusanTs(pod){
   const p = (pod||'').trim();
   if(PUSAN_TS_CITIES.includes(p.toUpperCase())) return `${p}, KOREA(PUSAN T/S)`;
