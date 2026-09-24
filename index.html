@@ -1169,8 +1169,10 @@ async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0], r
 // 釜山T/S経由の韓国向け主要港は仕向地に「, KOREA(PUSAN T/S)」を自動付加
 // PUSAN自体は釜山T/Sではなく直行のため対象から除外
 const PUSAN_TS_CITIES = ['KWANGYANG','INCHEON'];
-function applyPusanTs(pod){
+// PAN OCEANはKWANGYANG等へも直行本船のため、船社がPAN OCEANの場合はT/S表記を付加しない
+function applyPusanTs(pod, carrierName){
   const p = (pod||'').trim();
+  if((carrierName||'').toUpperCase().includes('PAN OCEAN')) return p;
   if(PUSAN_TS_CITIES.includes(p.toUpperCase())) return `${p}, KOREA(PUSAN T/S)`;
   return p;
 }
@@ -2414,7 +2416,7 @@ async function searchBkg(){
         .then(d => (d.value||[]).reduce((sum,r) => sum + (r.cr49f_count||0), 0))
         .catch(()=>''),
     ]);
-    const podName = podNameRaw === '(未取得)' ? podNameRaw : applyPusanTs(podNameRaw);
+    const podName = podNameRaw === '(未取得)' ? podNameRaw : applyPusanTs(podNameRaw, carrierName);
 
     // ③ ピックアップ希望日計算 (CY OPEN の前1営業日)
     const cyOpen = bkg.cr49f_cy_open ? bkg.cr49f_cy_open.substring(0,10) : null;
