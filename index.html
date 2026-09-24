@@ -1511,8 +1511,7 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   // 回転ページのため視覚的な1段下＝x座標を減算。y=264が欄の左端、幅約195pt
   const MEMO_LINE_X = [333, 315, 297, 279, 261, 243, 225, 207];
   if(ctx.memo){
-    const lines = String(ctx.memo).split('
-').slice(0, MEMO_LINE_X.length);
+    const lines = String(ctx.memo).split('\n').slice(0, MEMO_LINE_X.length);
     for(let i=0; i<lines.length; i++){
       if(lines[i]) await drawJpText(pdfDoc, page, lines[i], MEMO_LINE_X[i], 264, 10, [0.75,0,0], -90, 195);
     }
