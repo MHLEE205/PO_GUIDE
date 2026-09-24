@@ -1556,7 +1556,7 @@ async function fillYangmingTokyoPdf(bytes, ctx){
     }
   }
   // 担当者名欄（申込会社名/担当者名/電話番号の3行、担当者名は上から2行目）
-  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 160, 217.0, 11);
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 160, 220.0, 11);
   // バンニング場所/地名欄（フォーム自体に「埼玉県戸田市」が印字済みのため、常に白塗りして選択内容で描き直す。
   // 罫線（上端pdf_y≈125.4、下端pdf_y≈97.2）に重ならないよう、白塗り上端と文字位置を罫線より下げて余白を確保。
   // 日本語を含むためdrawJpText()でラスタライズ描画する）
