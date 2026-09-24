@@ -2470,10 +2470,13 @@ async function searchBkg(){
     const carrierGuid = bkg['_cr49f_carrier_id_value'];
     const polGuid     = bkg['_cr49f_region_japan_id_value'];
     const podGuid     = bkg['_cr49f_region_id_value'];
-    // 営業所マスター(crcf9_packer_plants)へのlookup列の論理名が確定できないため、$selectには含めず
-    // ブッキングを$selectなしで取得し「plant」を含むlookup列(_xxx_value)を自動検出する（失敗時は既定値）
-    const plantGuid = await dvGet(`cr49f_bookings(${bkg.cr49f_bookingid})`)
-      .then(d => { const k = Object.keys(d).find(k => /^_.*plant.*_value$/i.test(k) && d[k]); return k ? d[k] : null; })
+    // 営業所lookup「crcf9_parker_plant_id」（"packer"のタイポ）はブッキングではなくコンテナ情報
+    // (crcf9_container_informations)側にある。先頭コンテナの営業所GUIDを使用（失敗時は既定値）
+    const plantGuid = await dvGet(
+      `crcf9_container_informations?$filter=_crcf9_booking_id_value eq ${bkg.cr49f_bookingid}` +
+      `&$select=_crcf9_parker_plant_id_value`
+    )
+      .then(d => ((d.value||[]).find(r => r._crcf9_parker_plant_id_value) || {})._crcf9_parker_plant_id_value || null)
       .catch(() => null);
     const [carrierName, polName, podNameRaw, containerQty, plantAddress] = await Promise.all([
       carrierGuid ? dvGet(`crcf9_carriers(${carrierGuid})?$select=crcf9_carrier`).then(d=>d.crcf9_carrier).catch(()=>'(未取得)') : Promise.resolve('(未取得)'),
