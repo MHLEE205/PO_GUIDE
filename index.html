@@ -1207,6 +1207,17 @@ function applyPusanTs(pod, carrierName){
   return needsTs ? `${withCountry} (PUSAN T/S)` : withCountry;
 }
 
+// COMPASSのバン詰め場所(cr49f_vanning_place)は番地まで含む詳細住所のため、
+// 「市」「区」が最後に現れる位置までに切り詰めて使用する（例：「埼玉県川口市栄町3-1-1」→「埼玉県川口市」）
+function truncateToCityWard(address){
+  const s = (address||'').trim();
+  if(!s) return '';
+  const matches = [...s.matchAll(/[市区]/g)];
+  if(matches.length === 0) return s;
+  const lastIdx = matches[matches.length - 1].index;
+  return s.slice(0, lastIdx + 1);
+}
+
 // COMPASSの本船名フィールド（例："WECAN 2624W"）から本船名と航海番号を分離
 function parseVslVoy(raw){
   const s = String(raw||'').trim();
@@ -2445,7 +2456,7 @@ async function searchBkg(){
     const bkgData = await dvGet(
       `cr49f_bookings?$filter=cr49f_booking_no eq '${kw}' or cr49f_invoice_no eq '${kw}'` +
       `&$select=cr49f_bookingid,cr49f_booking_no,cr49f_invoice_no,cr49f_main_ship_name,` +
-      `cr49f_cy_open,cr49f_cy_cut,cr49f_etd,crcf9_delivery_location,` +
+      `cr49f_cy_open,cr49f_cy_cut,cr49f_etd,crcf9_delivery_location,cr49f_vanning_place,` +
       `_cr49f_carrier_id_value,_cr49f_region_japan_id_value,_cr49f_region_id_value`
     );
     if(!bkgData.value || bkgData.value.length === 0){
@@ -2515,6 +2526,8 @@ async function searchBkg(){
       const matchedKey  = firstCard.dataset.carrierKey;
       const { vslName, voyNo } = parseVslVoy(bkg.cr49f_main_ship_name);
       const isTatsumiOsaka = matchedPort === 'OSAKA' && ['HEUNG-A','KMTC','SINOKOR','NAMSUNG','DONG YOUNG','PAN OCEAN'].includes(matchedKey);
+      // バン詰め場所：COMPASSの実データ(cr49f_vanning_place)があれば市区まで切り詰めて使用、なければ既定値
+      const vanningPlace = truncateToCityWard(bkg.cr49f_vanning_place) || '埼玉県川口市';
       lastBkgContext = {
         bkgNo:        bkg.cr49f_booking_no || '',
         vslName:      vslName,
@@ -2529,7 +2542,7 @@ async function searchBkg(){
         dischargePort: 'KAOHSIUNG', // 陸揚港（T/S）欄。TOKYO YANGMINGフォームのみ使用、通常はKAOHSIUNG T/S固定だが編集可
         staffName:    getStaffName(), // 担当者名欄。ログイン中のCOMPASSアカウント名をデフォルトにし、編集可能
         itemName:     'WASTE PAPER(古紙)', // 品名欄。YANGMING/INTERASIA大阪フォームで使用。通常はWASTE PAPER(古紙)だがUSED CLOTHING(古着)等に編集可
-        vanningPlace: '埼玉県川口市' // バン詰め場所欄。TOKYO YANGMING/TOKYO KMTCフォームで使用、編集可
+        vanningPlace: vanningPlace // バン詰め場所欄。TOKYO YANGMING/TOKYO KMTCフォームで使用、編集可。COMPASSデータがあれば市区まで自動反映
       };
       html += contactBoxHtml(firstCard);
       html += `<div class="edit-box">
@@ -2570,7 +2583,7 @@ async function searchBkg(){
         ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'KMTC') ? `
         <div class="edit-grid" style="margin-top:10px;">
           <label>バン詰め場所
-            <input type="text" id="editVanningPlace" list="vanningPlaceOptions" value="埼玉県川口市" oninput="updateBkgField('vanningPlace', this.value)">
+            <input type="text" id="editVanningPlace" list="vanningPlaceOptions" value="${vanningPlace}" oninput="updateBkgField('vanningPlace', this.value)">
             <datalist id="vanningPlaceOptions">
               <option value="埼玉県川口市"></option>
               <option value="千葉県船橋市"></option>
