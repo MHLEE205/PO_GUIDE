@@ -1408,16 +1408,16 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   const POD_MAX_WIDTH = 120;
   if(pod.includes(',') && font.widthOfTextAtSize(pod, 14) > POD_MAX_WIDTH){
     const idx = pod.indexOf(',');
-    draw(pod.slice(0, idx+1).trim(), 355.2, 641.6, 12);
-    draw(pod.slice(idx+1).trim(),    339.2, 641.6, 12); // 2行目（回転ページのため視覚的な1段下＝x座標を1行分減算）
+    draw(pod.slice(0, idx+1).trim(), 355.2, 638.6, 12);
+    draw(pod.slice(idx+1).trim(),    339.2, 638.6, 12); // 2行目（回転ページのため視覚的な1段下＝x座標を1行分減算）
   } else {
-    draw(pod, 355.2, 641.6, 14);
+    draw(pod, 355.2, 638.6, 14);
   }
   draw(pickup.month, 284.0, 634.0, 14); // 搬出日欄（月）
   draw(pickup.day,   284.4, 552.4, 14); // 搬出日欄（日）
   if(ctx.containerQty) draw(ctx.containerQty, 180.0, 371.6, 12); // 40'HQ本数欄
   // 担当者欄（TEL/FAX欄の下、幅約63pt。長い氏名でも収まるようやや小さめのフォントサイズを使用）
-  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 378, 410, 9, [0.75,0,0], -90, 60);
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 378, 408, 8, [0.75,0,0], -90, 60);
   return pdfDoc.save();
 }
 
