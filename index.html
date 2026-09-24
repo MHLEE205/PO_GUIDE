@@ -1166,17 +1166,45 @@ async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0], r
   page.drawImage(png, opts);
 }
 
-// 韓国向け主要港は仕向地に「, SOUTH KOREA」を自動付加。
-// PUSAN以外（KWANGYANG/INCHEON）は釜山T/S経由のため「(PUSAN T/S)」も付加する（PUSAN自体は直行のため対象外）。
-// PAN OCEANはKWANGYANG等へも直行本船のため、船社がPAN OCEANの場合は「(PUSAN T/S)」を付加しない
-const KOREA_CITIES = ['PUSAN','KWANGYANG','INCHEON'];
+// 主要港→国名の対応表。仕向地(POD)にCOMPASSから国名が付いてこないため自動付加する。
+// 未登録の港名はそのまま（誤った国名を付けるより、何も付けない方が安全なため）。
+// 新しい港が出てきた場合はここに追記する
+const PORT_COUNTRY = {
+  'PUSAN':'SOUTH KOREA', 'KWANGYANG':'SOUTH KOREA', 'INCHEON':'SOUTH KOREA', 'ULSAN':'SOUTH KOREA',
+  'MASAN':'SOUTH KOREA', 'GUNSAN':'SOUTH KOREA', 'KUNSAN':'SOUTH KOREA', 'MOKPO':'SOUTH KOREA',
+  'PYEONGTAEK':'SOUTH KOREA', 'YEOSU':'SOUTH KOREA', 'POHANG':'SOUTH KOREA', 'DAESAN':'SOUTH KOREA',
+  'SURABAYA':'INDONESIA', 'JAKARTA':'INDONESIA', 'SEMARANG':'INDONESIA', 'BELAWAN':'INDONESIA', 'MAKASSAR':'INDONESIA',
+  'NHAVA SHEVA':'INDIA', 'MUNDRA':'INDIA', 'CHENNAI':'INDIA', 'KOLKATA':'INDIA', 'COCHIN':'INDIA', 'TUTICORIN':'INDIA', 'VISAKHAPATNAM':'INDIA',
+  'HO CHI MINH':'VIETNAM', 'HAIPHONG':'VIETNAM', 'DA NANG':'VIETNAM',
+  'BANGKOK':'THAILAND', 'LAEM CHABANG':'THAILAND',
+  'PORT KLANG':'MALAYSIA', 'PENANG':'MALAYSIA', 'PASIR GUDANG':'MALAYSIA',
+  'MANILA':'PHILIPPINES', 'CEBU':'PHILIPPINES',
+  'SINGAPORE':'SINGAPORE',
+  'KAOHSIUNG':'TAIWAN', 'KEELUNG':'TAIWAN', 'TAICHUNG':'TAIWAN',
+  'HONG KONG':'HONG KONG',
+  'SHANGHAI':'CHINA', 'QINGDAO':'CHINA', 'NINGBO':'CHINA', 'XIAMEN':'CHINA', 'SHENZHEN':'CHINA', 'DALIAN':'CHINA', 'TIANJIN':'CHINA', 'GUANGZHOU':'CHINA',
+  'YANGON':'MYANMAR',
+  'CHITTAGONG':'BANGLADESH', 'DHAKA':'BANGLADESH',
+  'KARACHI':'PAKISTAN',
+  'COLOMBO':'SRI LANKA',
+  'DUBAI':'U.A.E.', 'JEBEL ALI':'U.A.E.',
+};
+// 通常は釜山T/S経由の韓国向け港はKWANGYANG/INCHEONのみ「(PUSAN T/S)」を付加（PUSAN自体は直行のため対象外）。
+// KMTC/SINOKOR/HEUNG-A/NAMSUNG/DONG YOUNGは釜山ハブ経由が基本のため、韓国向けなら港を問わず付加する。
+// PAN OCEANは直行本船のため「(PUSAN T/S)」を付加しない
 const PUSAN_TS_CITIES = ['KWANGYANG','INCHEON'];
+const ALWAYS_TS_CARRIERS = ['KMTC','SINOKOR','HEUNG-A','HEUNG A','NAMSUNG','DONGYOUNG','DONG YOUNG'];
 function applyPusanTs(pod, carrierName){
   const p = (pod||'').trim();
-  if(!KOREA_CITIES.includes(p.toUpperCase())) return p;
-  const isPanOcean = (carrierName||'').toUpperCase().includes('PAN OCEAN');
-  const needsTs = PUSAN_TS_CITIES.includes(p.toUpperCase()) && !isPanOcean;
-  return needsTs ? `${p}, SOUTH KOREA (PUSAN T/S)` : `${p}, SOUTH KOREA`;
+  const pu = p.toUpperCase();
+  const country = PORT_COUNTRY[pu];
+  if(!country) return p;
+  if(country !== 'SOUTH KOREA' || pu === 'PUSAN') return `${p}, ${country}`;
+  const carrier = (carrierName||'').toUpperCase();
+  const isPanOcean = carrier.includes('PAN OCEAN');
+  const isAlwaysTs = ALWAYS_TS_CARRIERS.some(c => carrier.includes(c));
+  const needsTs = !isPanOcean && (isAlwaysTs || PUSAN_TS_CITIES.includes(pu));
+  return needsTs ? `${p}, ${country} (PUSAN T/S)` : `${p}, ${country}`;
 }
 
 // COMPASSの本船名フィールド（例："WECAN 2624W"）から本船名と航海番号を分離
