@@ -1260,7 +1260,7 @@ async function fillCncKobePdf(bytes, ctx){
   // USED CLOTH選択時は行全体（「/ BALES」部分含む）を白塗りし、「USED CLOTH / BALES」として描き直す
   // （「/ BALES」は固定のまま、前半の品名部分のみ差し替える）。古着専用PDFは廃止されたため、この上書きが唯一の品目切替手段）
   if((ctx.itemName || '').toUpperCase() === 'USED CLOTH'){
-    page.drawRectangle({ x: 225, y: 526, width: 175, height: 19, color: rgb(1,1,1) });
+    page.drawRectangle({ x: 225, y: 528, width: 175, height: 15, color: rgb(1,1,1) });
     draw('USED CLOTH / BALES', 227.6, 529.5, 11);
   }
   draw(ctx.voyNo ? `${ctx.vslName}  VOY ${ctx.voyNo}` : ctx.vslName, 232, 620, 11); // 本船名／VOY NO.欄（1セル共用）
