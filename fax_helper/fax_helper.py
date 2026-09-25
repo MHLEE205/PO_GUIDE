@@ -34,7 +34,7 @@ import win32event
 import win32gui
 import win32print
 
-VERSION = '1.2.0'
+VERSION = '1.2.1'
 PORT = 18765
 ALLOWED_ORIGINS = {'https://mhlee205.github.io'}
 PROFILES_URL = 'https://mhlee205.github.io/PO_GUIDE/fax_helper/profiles.json'
@@ -631,23 +631,100 @@ class ExclusiveServer(ThreadingHTTPServer):
     allow_reuse_address = False
 
 
-def notify_already_running():
-    win32api.MessageBox(0, 'POFaxHelperは既に起動しています。\n画面右下のタスクトレイ（^）に常駐しています。',
-                        'POFaxHelper', win32con.MB_OK | win32con.MB_ICONINFORMATION)
+def message_box(text, icon=win32con.MB_ICONINFORMATION):
+    win32api.MessageBox(0, text, 'POFaxHelper', win32con.MB_OK | icon)
+
+
+# ── 起動中の旧バージョンの自動置き換え ──
+def version_tuple(v):
+    try:
+        return tuple(int(x) for x in str(v).split('.'))
+    except ValueError:
+        return (0,)
+
+
+def running_version():
+    """起動中のPOFaxHelperのバージョン（応答が無ければNone）。v1.0.0からある /status を使う"""
+    req = urllib.request.Request(f'http://127.0.0.1:{PORT}/status', headers={'Origin': next(iter(ALLOWED_ORIGINS))})
+    try:
+        with urllib.request.urlopen(req, timeout=2) as r:
+            return json.loads(r.read().decode('utf-8')).get('version')
+    except Exception:
+        return None
+
+
+def listener_pids():
+    """ポートPORTで待ち受けているプロセスのPID一覧（旧版はSO_REUSEADDRで複数いる場合がある）"""
+    import subprocess
+    out = subprocess.run(['netstat', '-ano', '-p', 'TCP'], capture_output=True, text=True,
+                         creationflags=0x08000000).stdout  # CREATE_NO_WINDOW（コンソールを出さない）
+    pids = set()
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[1].endswith(f':{PORT}') and parts[3] == 'LISTENING':
+            pids.add(int(parts[4]))
+    pids.discard(os.getpid())
+    return pids
+
+
+def terminate_pid(pid):
+    try:
+        h = win32api.OpenProcess(win32con.PROCESS_TERMINATE, False, pid)
+        win32api.TerminateProcess(h, 0)
+        win32api.CloseHandle(h)
+        return True
+    except Exception as e:
+        log.warning('プロセス %s を終了できませんでした: %s', pid, e)
+        return False
+
+
+def replace_old_instance():
+    """起動中のものが旧バージョンなら終了させて置き換える。
+    戻り値: (続行してよいか, 置き換えた旧バージョン or None)"""
+    old = running_version()
+    if old is None:
+        time.sleep(2)  # 起動直後でまだ応答できない場合に備えて再確認
+        old = running_version()
+    if old is not None and version_tuple(old) >= version_tuple(VERSION):
+        log.info('already running v%s', old)
+        message_box(f'POFaxHelper（v{old}）は既に起動しています。\n画面右下のタスクトレイ（^）に常駐しています。')
+        return False, None
+    pids = listener_pids()
+    if not pids or not all(terminate_pid(p) for p in pids):
+        log.info('could not replace running instance (v%s)', old)
+        message_box('起動中のPOFaxHelper（旧バージョン）を自動で終了できませんでした。\n'
+                    'タスクトレイ（^）のアイコンを右クリック→「終了」してから、もう一度実行してください。',
+                    win32con.MB_ICONWARNING)
+        return False, None
+    log.info('replaced v%s with v%s', old, VERSION)
+    return True, old or '旧バージョン'
 
 
 def main():
-    # 多重起動防止（exeを何度もダブルクリックしても1つだけ動くようにする）
+    # 多重起動防止（exeを何度もダブルクリックしても1つだけ動くようにする）。
+    # 起動中のものが旧バージョンなら自動で終了させて新バージョンに置き換える
+    upgraded_from = None
     mutex = win32event.CreateMutex(None, False, 'Local\\POFaxHelper_SingleInstance')
-    if win32api.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
-        log.info('already running (mutex)')
-        notify_already_running()
-        return
-    try:
-        server = ExclusiveServer(('127.0.0.1', PORT), Handler)
-    except OSError:
-        log.info('already running (port in use)')
-        notify_already_running()
+    already = win32api.GetLastError() == 183  # ERROR_ALREADY_EXISTS
+    if not already:
+        try:
+            ExclusiveServer(('127.0.0.1', PORT), Handler).server_close()
+        except OSError:
+            already = True  # 多重起動防止の無いv1.0.0が起動中
+    if already:
+        ok, upgraded_from = replace_old_instance()
+        if not ok:
+            return
+    server = None
+    for _ in range(20):  # 旧プロセス終了直後はポート解放まで少しかかる
+        try:
+            server = ExclusiveServer(('127.0.0.1', PORT), Handler)
+            break
+        except OSError:
+            time.sleep(0.5)
+    if server is None:
+        log.info('port still in use')
+        message_box('ポートが使用中のため起動できませんでした。PCを再起動してからもう一度実行してください。', win32con.MB_ICONWARNING)
         return
     cfg = load_config()
     # 初回は自動登録。登録済みの場合も、exeを移動・更新したときに備えて現在のexeパスで登録し直す
@@ -693,7 +770,8 @@ def main():
         icon.visible = True
         # 画面を持たない常駐ツールのため、起動したことが分かるよう通知を出す
         try:
-            icon.notify('起動しました。タスクトレイに常駐し、PO_GUIDEからのFAX自動入力を待ち受けます。', 'POFaxHelper')
+            icon.notify(f'v{upgraded_from} → v{VERSION} に更新しました。' if upgraded_from
+                        else f'起動しました（v{VERSION}）。タスクトレイに常駐し、PO_GUIDEからのFAX自動入力を待ち受けます。', 'POFaxHelper')
         except Exception:
             pass
 
