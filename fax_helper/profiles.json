@@ -1,0 +1,15 @@
+{
+  "_comment": "POFaxHelperがFAX画面へ入力する手順。新しい形のFAX画面はここに追加（exeの再配布不要）。{number}=FAX番号、{name}=宛先名",
+  "profiles": [
+    {
+      "name": "FUJIFILM ApeosPort FAXドライバー",
+      "title_contains": ["ファクス送信の設定"],
+      "steps": [
+        ["key", "alt+f"], ["key", "ctrl+a"], ["key", "delete"], ["type", "{number}"],
+        ["key", "alt+n"], ["key", "ctrl+a"], ["key", "delete"], ["paste", "{name}"],
+        ["key", "alt+i"]
+      ]
+    }
+  ],
+  "generic_title_contains": ["ファクス", "FAX", "Fax"]
+}

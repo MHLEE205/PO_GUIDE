@@ -1,0 +1,34 @@
+# POFaxHelper.exe をビルドしてGitHub Releasesに公開する
+# 実行方法: fax_helper/fax_helper.py の VERSION を上げてから「fax-helper-v1.0.0」形式のタグをpush
+name: Build POFaxHelper
+
+on:
+  push:
+    tags: ['fax-helper-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pywin32 pystray pillow pyinstaller
+      - name: Build exe
+        run: pyinstaller --onefile --noconsole --name POFaxHelper --hidden-import pystray._win32 fax_helper/fax_helper.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: POFaxHelper
+          path: dist/POFaxHelper.exe
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/POFaxHelper.exe
+          make_latest: true

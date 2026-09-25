@@ -2193,8 +2193,122 @@ function showFaxPrintButton(){
     area.style.marginTop = '8px';
     resultEl.appendChild(area);
   }
-  area.innerHTML = `<button class="btn" style="background:var(--accent);color:#fff;padding:9px 18px;font-weight:800;border-radius:6px;" onclick="printPdfForFax()">📠 FAXで送信（印刷ダイアログを開く）</button>
+  area.innerHTML = `<div id="faxAutoArea"></div>
+    <button class="btn" style="background:var(--accent);color:#fff;padding:9px 18px;font-weight:800;border-radius:6px;" onclick="printPdfForFax()">📠 FAXで送信（印刷ダイアログを開く）</button>
     <div style="font-size:11px;color:var(--text2);margin-top:4px;">印刷ダイアログの「プリンター」一覧から複合機のFAX項目を選んで送信してください。</div>`;
+  renderFaxAutoArea();
+}
+
+// ── FAX自動入力ヘルパー（POFaxHelper.exe）連携 ──
+// 各PCに常駐するPOFaxHelperへPDFとFAX番号を渡し、複合機FAXドライバーの「ファクス送信の設定／確認」画面に
+// 番号・宛先名を自動入力させる。「送信開始」はユーザーが画面で確認してから押す（ヘルパーは押さない）。
+// ヘルパー本体・ビルド手順は fax_helper/ を参照。ヘルパーが無いPCでは従来の印刷ダイアログ方式のみ表示
+const FAX_HELPER_URL = 'http://127.0.0.1:18765';
+const FAX_HELPER_DOWNLOAD_URL = 'https://github.com/MHLEE205/PO_GUIDE/releases/latest/download/POFaxHelper.exe';
+
+async function faxHelperFetch(path, opts={}, timeoutMs=1500){
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(FAX_HELPER_URL + path, { ...opts, signal: ctrl.signal });
+    const json = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    return json;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// 現在のBKGの送信先FAX番号・宛先名（PO EXCEL.xlsxの連絡先 → 無ければカードのFAX No.欄）
+function currentFaxTarget(){
+  const port = (lastBkgContext?.port || '').toUpperCase();
+  const ckRaw = lastBkgContext?.carrierKey || '';
+  const ck = ckRaw.toUpperCase().replace(/[\s\-]/g,'');
+  const c = (_poContacts || {})[`${port}_${ck}`];
+  let numbers = [];
+  let name = c?.name || '';
+  if(c?.to && !c.to.includes('@')) numbers = [c.to, isMeaningfulTo2(c.to2) ? c.to2 : ''];
+  const card = document.querySelector(`.card[data-port="${lastBkgContext?.port}"][data-carrier-key="${ckRaw}"]`);
+  if(card){
+    card.querySelectorAll('.card-row').forEach(row => {
+      const k = row.querySelector('.card-key')?.textContent || '';
+      const v = row.querySelector('.card-val')?.textContent.trim() || '';
+      if(!numbers.length && k.includes('FAX No.')) numbers = v.split('/');
+      if(!name && k.includes('FAX先')) name = v;
+    });
+  }
+  numbers = numbers.map(n => (n || '').trim()).filter(n => n.replace(/\D/g,'').length >= 9);
+  return { numbers, name: name || ckRaw };
+}
+
+async function renderFaxAutoArea(){
+  const el = document.getElementById('faxAutoArea');
+  if(!el) return;
+  let status = null;
+  try { status = await faxHelperFetch('/status'); } catch(e) { status = null; }
+  if(!status?.ok){
+    el.innerHTML = `<div style="font-size:11px;color:var(--text2);margin-bottom:6px;">💡 FAX自動入力ツール（POFaxHelper）を起動しておくと、FAX番号・宛先名の入力まで自動化できます。
+      <a href="${FAX_HELPER_DOWNLOAD_URL}" style="color:var(--accent);">ダウンロード</a>（初回のみ。ダウンロード後に実行すると常駐し、次回からWindows起動時に自動起動します）</div>`;
+    return;
+  }
+  const target = currentFaxTarget();
+  const bkgNo = lastBkgContext?.bkgNo || '';
+  const printers = status.printers || [];
+  const printerSel = printers.length > 1
+    ? `<select id="faxAutoPrinter" onchange="setFaxHelperPrinter(this.value)" style="font-size:11px;">${printers.map(p => `<option ${p === status.printer ? 'selected' : ''}>${escapeXmlText(p)}</option>`).join('')}</select>`
+    : `<strong>${escapeXmlText(status.printer || '（FAXプリンターなし）')}</strong>`;
+  el.innerHTML = `<div style="border:1px solid var(--fax-border);border-radius:6px;padding:8px 10px;margin-bottom:8px;">
+    <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">🟢 FAX自動入力ツール接続中（v${escapeXmlText(status.version || '')}） ／ プリンター: ${printerSel}</div>
+    <div class="edit-grid">
+      <label>FAX番号（複数は「/」区切り）<input type="text" id="faxAutoNumbers" value="${escapeXmlText(target.numbers.join(' / '))}"></label>
+      <label>宛先名（FAX画面の「名前」欄）<input type="text" id="faxAutoName" value="${escapeXmlText(`${bkgNo} ${target.name}`.trim())}"></label>
+    </div>
+    <button class="btn" style="background:var(--accent2);color:#fff;padding:9px 18px;font-weight:800;border-radius:6px;margin-top:6px;" onclick="sendFaxViaHelper(this)">📠 FAX自動入力（番号・宛先名まで自動）</button>
+    <div id="faxAutoStatus" style="font-size:12px;margin-top:6px;"></div>
+  </div>`;
+}
+
+async function setFaxHelperPrinter(printer){
+  try { await faxHelperFetch('/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ printer }) }); }
+  catch(e) { alert('プリンター設定エラー: ' + e.message); }
+}
+
+function bytesToBase64(bytes){
+  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let bin = '';
+  for(let i=0; i<u8.length; i+=0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i+0x8000));
+  return btoa(bin);
+}
+
+async function sendFaxViaHelper(btnEl){
+  if(!_lastFilledPdf){ alert('先に「P/O自動作成」でPDFを作成してください。'); return; }
+  const statusEl = document.getElementById('faxAutoStatus');
+  const numbers = (document.getElementById('faxAutoNumbers')?.value || '').split('/').map(s => s.trim()).filter(Boolean);
+  const recipient = document.getElementById('faxAutoName')?.value.trim() || '';
+  if(!numbers.length){ alert('FAX番号を入力してください。'); return; }
+  const show = (msg, color='var(--text)') => { if(statusEl) statusEl.innerHTML = `<span style="color:${color}">${escapeXmlText(msg)}</span>`; };
+  btnEl.disabled = true;
+  show('⏳ FAX画面を開いています…');
+  try {
+    const { job_id } = await faxHelperFetch('/fax', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pdf_base64: bytesToBase64(_lastFilledPdf.bytes), filename: _lastFilledPdf.filename, fax_numbers: numbers, recipient })
+    }, 15000);
+    const started = Date.now();
+    while(Date.now() - started < 11*60*1000){
+      await new Promise(r => setTimeout(r, 1000));
+      const job = await faxHelperFetch(`/job/${job_id}`);
+      if(job.state === 'filled')  show('✅ ' + job.message, 'var(--accent2)');
+      if(job.state === 'printing') show('⏳ ' + job.message);
+      if(job.state === 'manual')  show('⚠️ ' + job.message, 'var(--warn)');
+      if(job.state === 'closed' || job.state === 'timeout'){ show('ℹ️ ' + job.message, 'var(--text2)'); break; }
+      if(job.state === 'error'){ show('❌ ' + job.message, 'var(--warn)'); break; }
+    }
+  } catch(e) {
+    show('❌ FAX自動入力エラー: ' + e.message + '（下の「印刷ダイアログを開く」から手動で送信できます）', 'var(--warn)');
+  } finally {
+    btnEl.disabled = false;
+  }
 }
 
 function printPdfForFax(){
