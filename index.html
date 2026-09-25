@@ -2169,10 +2169,13 @@ async function autoFillAndDownload(fileIndex, btnEl){
     assertPdfBytes(bytes);
     const filled = await filler(bytes, lastBkgContext);
     const filename = `PO(${lastBkgContext.bkgNo}).pdf`;
-    triggerDownload(filled, filename);
     _lastFilledPdf = { bytes: filled, filename };
-    showFaxPrintButton();
-    btnEl.textContent = '✅ ダウンロード完了';
+    // FAX自動入力ツール(v1.1.0以降)が接続中なら、ツールがダウンロードフォルダに保存してAcrobatで開く
+    // （利用者が確認・修正・保存 →「確認完了 → FAX画面を開く」で保存済みの最終版をFAX）。未接続・失敗時は従来どおりブラウザでダウンロード
+    const opened = await openPdfViaHelper(filled, filename);
+    if(!opened) triggerDownload(filled, filename);
+    showFaxPrintButton(opened ? 'opened' : 'auto');
+    btnEl.textContent = opened ? '✅ 保存してPDFを開きました' : '✅ ダウンロード完了';
     setMiniFlow(5);
   } catch(e) {
     alert('自動入力エラー: ' + e.message);
@@ -2183,7 +2186,9 @@ async function autoFillAndDownload(fileIndex, btnEl){
 
 // ダウンロード済みPDFを、ブラウザの印刷ダイアログ経由でそのままFAX送信できるようにする
 // （複合機のプリンタードライバー一覧からFAX用の項目を選んで送信する運用を想定）
-function showFaxPrintButton(){
+// mode: 'opened'＝ツールでPDFを開いた直後（確認・修正後にボタンでFAX画面を開く）
+//       'auto'  ＝ブラウザでダウンロードした直後（ツールが旧バージョン等で接続中ならそのままFAX画面を開く）
+function showFaxPrintButton(mode=''){
   const resultEl = document.getElementById('autoFetchResult');
   if(!resultEl || !_lastFilledPdf) return;
   let area = document.getElementById('faxPrintArea');
@@ -2194,9 +2199,11 @@ function showFaxPrintButton(){
     resultEl.appendChild(area);
   }
   area.innerHTML = `<div id="faxAutoArea"></div>
-    <button class="btn" style="background:var(--accent);color:#fff;padding:9px 18px;font-weight:800;border-radius:6px;" onclick="printPdfForFax()">📠 FAXで送信（印刷ダイアログを開く）</button>
-    <div style="font-size:11px;color:var(--text2);margin-top:4px;">印刷ダイアログの「プリンター」一覧から複合機のFAX項目を選んで送信してください。</div>`;
-  renderFaxAutoArea();
+    <div id="faxPrintManual">
+      <button class="btn" style="background:var(--accent);color:#fff;padding:9px 18px;font-weight:800;border-radius:6px;" onclick="printPdfForFax()">📠 FAXで送信（印刷ダイアログを開く）</button>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px;">印刷ダイアログの「プリンター」一覧から複合機のFAX項目を選んで送信してください。</div>
+    </div>`;
+  renderFaxAutoArea(mode);
 }
 
 // ── FAX自動入力ヘルパー（POFaxHelper.exe）連携 ──
@@ -2241,7 +2248,33 @@ function currentFaxTarget(){
   return { numbers, name: name || ckRaw };
 }
 
-async function renderFaxAutoArea(){
+// ツールがバージョンvを満たすか（"1.1.0"形式）
+function faxHelperAtLeast(version, need){
+  const a = String(version || '0').split('.').map(Number), b = need.split('.').map(Number);
+  for(let i=0; i<3; i++){ if((a[i]||0) !== (b[i]||0)) return (a[i]||0) > (b[i]||0); }
+  return true;
+}
+
+// ツールにPDFを渡してダウンロードフォルダへ保存・Acrobatで表示させる。成功時true（_lastFilledPdfにdocId等を記録）
+async function openPdfViaHelper(bytes, filename){
+  try {
+    const status = await faxHelperFetch('/status');
+    if(!status?.ok || !faxHelperAtLeast(status.version, '1.1.0')) return false;
+    const res = await faxHelperFetch('/open', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pdf_base64: bytesToBase64(bytes), filename })
+    }, 15000);
+    _lastFilledPdf.docId = res.doc_id;
+    _lastFilledPdf.savedPath = res.path;
+    _lastFilledPdf.openedInApp = res.opened;
+    return true;
+  } catch(e) {
+    console.warn('FAX自動入力ツールでのPDF表示に失敗（ブラウザでダウンロードします）:', e.message);
+    return false;
+  }
+}
+
+async function renderFaxAutoArea(mode=''){
   const el = document.getElementById('faxAutoArea');
   if(!el) return;
   let status = null;
@@ -2257,15 +2290,36 @@ async function renderFaxAutoArea(){
   const printerSel = printers.length > 1
     ? `<select id="faxAutoPrinter" onchange="setFaxHelperPrinter(this.value)" style="font-size:11px;">${printers.map(p => `<option ${p === status.printer ? 'selected' : ''}>${escapeXmlText(p)}</option>`).join('')}</select>`
     : `<strong>${escapeXmlText(status.printer || '（FAXプリンターなし）')}</strong>`;
+  // ツール接続中は印刷ダイアログ方式のボタンを隠す（関数・要素は残し、ツール未接続時は従来どおり表示）
+  const manual = document.getElementById('faxPrintManual');
+  if(manual) manual.style.display = 'none';
+  const isOpened = mode === 'opened' && _lastFilledPdf?.docId;
+  const canAuto = mode === 'auto' && target.numbers.length > 0;
+  const needUpdate = !faxHelperAtLeast(status.version, '1.1.0');
+  const openedNote = isOpened
+    ? `<div style="font-size:12px;margin-bottom:6px;">📝 PDFを保存して${_lastFilledPdf.openedInApp ? '開きました' : '保存しました（自動で開けなかったため、下記ファイルを開いてください）'}：<code style="font-size:11px;">${escapeXmlText(_lastFilledPdf.savedPath || '')}</code><br>
+       内容を確認し、修正する場合は <strong>Acrobatで修正して保存（Ctrl+S）してから</strong> 下のボタンを押してください。保存した最終版がFAXされます。</div>` : '';
+  const mainBtnLabel = isOpened ? '📠 確認完了 → FAX画面を開く' : '🔁 FAX画面をもう一度開く';
+  // 送信先の入力欄は通常は折りたたみ（FAX画面上でも確認・修正できるため）。番号が取れない場合のみ開いておく
   el.innerHTML = `<div style="border:1px solid var(--fax-border);border-radius:6px;padding:8px 10px;margin-bottom:8px;">
-    <div style="font-size:11px;color:var(--text2);margin-bottom:6px;">🟢 FAX自動入力ツール接続中（v${escapeXmlText(status.version || '')}） ／ プリンター: ${printerSel}</div>
-    <div class="edit-grid">
-      <label>FAX番号（複数は「/」区切り）<input type="text" id="faxAutoNumbers" value="${escapeXmlText(target.numbers.join(' / '))}"></label>
-      <label>宛先名（FAX画面の「名前」欄）<input type="text" id="faxAutoName" value="${escapeXmlText(`${bkgNo} ${target.name}`.trim())}"></label>
-    </div>
-    <button class="btn" style="background:var(--accent2);color:#fff;padding:9px 18px;font-weight:800;border-radius:6px;margin-top:6px;" onclick="sendFaxViaHelper(this)">📠 FAX自動入力（番号・宛先名まで自動）</button>
-    <div id="faxAutoStatus" style="font-size:12px;margin-top:6px;"></div>
+    ${openedNote}
+    <div id="faxAutoStatus" style="font-size:13px;font-weight:700;margin-bottom:6px;"></div>
+    <div style="font-size:12px;margin-bottom:6px;">送信先: <strong>${escapeXmlText(target.numbers.join(' / ') || '（FAX番号未設定）')}</strong>　${escapeXmlText(target.name)}</div>
+    <button class="btn" style="background:var(--accent2);color:#fff;padding:${isOpened ? '9px 18px;font-weight:800' : '7px 14px;font-weight:700'};border-radius:6px;" onclick="sendFaxViaHelper(this)">${mainBtnLabel}</button>
+    ${needUpdate ? `<div style="font-size:11px;color:var(--warn);margin-top:6px;">⬆️ FAX自動入力ツールの新しいバージョンがあります（PDFを開いて修正してからFAXする機能）。トレイのアイコンから終了し、<a href="${FAX_HELPER_DOWNLOAD_URL}" style="color:var(--accent);">新しいバージョン</a>をダウンロードして実行してください。</div>` : ''}
+    <details style="margin-top:6px;" ${target.numbers.length ? '' : 'open'}>
+      <summary style="font-size:11px;color:var(--text2);cursor:pointer;">送信先を変更する</summary>
+      <div class="edit-grid" style="margin-top:6px;">
+        <label>FAX番号（複数は「/」区切り）<input type="text" id="faxAutoNumbers" value="${escapeXmlText(target.numbers.join(' / '))}"></label>
+        <label>宛先名（FAX画面の「名前」欄）<input type="text" id="faxAutoName" value="${escapeXmlText(`${bkgNo} ${target.name}`.trim())}"></label>
+      </div>
+    </details>
+    <div style="font-size:10px;color:var(--text2);margin-top:6px;">🟢 FAX自動入力ツール接続中（v${escapeXmlText(status.version || '')}） ／ プリンター: ${printerSel}</div>
   </div>`;
+  const reopenBtn = el.querySelector('button');
+  if(canAuto) sendFaxViaHelper(reopenBtn);
+  else if(!target.numbers.length) document.getElementById('faxAutoStatus').innerHTML =
+    `<span style="color:var(--warn)">⚠️ FAX番号が見つかりません。「送信先を変更する」に番号を入力して「FAX画面をもう一度開く」を押してください。</span>`;
 }
 
 async function setFaxHelperPrinter(printer){
@@ -2292,7 +2346,10 @@ async function sendFaxViaHelper(btnEl){
   try {
     const { job_id } = await faxHelperFetch('/fax', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ pdf_base64: bytesToBase64(_lastFilledPdf.bytes), filename: _lastFilledPdf.filename, fax_numbers: numbers, recipient })
+      // ツールで開いたPDFがある場合はそのファイル（利用者が修正・保存した最終版）を送る
+      body: JSON.stringify(_lastFilledPdf.docId
+        ? { doc_id: _lastFilledPdf.docId, fax_numbers: numbers, recipient }
+        : { pdf_base64: bytesToBase64(_lastFilledPdf.bytes), filename: _lastFilledPdf.filename, fax_numbers: numbers, recipient })
     }, 15000);
     const started = Date.now();
     while(Date.now() - started < 11*60*1000){
@@ -2306,6 +2363,8 @@ async function sendFaxViaHelper(btnEl){
     }
   } catch(e) {
     show('❌ FAX自動入力エラー: ' + e.message + '（下の「印刷ダイアログを開く」から手動で送信できます）', 'var(--warn)');
+    const manual = document.getElementById('faxPrintManual');
+    if(manual) manual.style.display = '';
   } finally {
     btnEl.disabled = false;
   }

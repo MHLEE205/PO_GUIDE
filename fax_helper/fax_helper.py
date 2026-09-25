@@ -34,7 +34,7 @@ import win32event
 import win32gui
 import win32print
 
-VERSION = '1.0.1'
+VERSION = '1.1.0'
 PORT = 18765
 ALLOWED_ORIGINS = {'https://mhlee205.github.io'}
 PROFILES_URL = 'https://mhlee205.github.io/PO_GUIDE/fax_helper/profiles.json'
@@ -243,7 +243,7 @@ def set_job(job_id, **kw):
     log.info('job %s: %s', job_id, kw)
 
 
-def run_fax_job(job_id, pdf_path, numbers, name, printer):
+def run_fax_job(job_id, pdf_path, numbers, name, printer, delete_after=True):
     try:
         profiles = load_profiles()
         # 既に開いているFAX画面を誤って操作しないよう、印刷前に存在していたものを記録
@@ -305,8 +305,9 @@ def run_fax_job(job_id, pdf_path, numbers, name, printer):
         log.exception('job %s failed', job_id)
         set_job(job_id, state='error', message=str(e))
     finally:
-        # Acrobat等がファイルを掴んでいる可能性があるため、しばらく後に削除
-        threading.Timer(600, lambda: _safe_remove(pdf_path)).start()
+        # 一時ファイルのみ削除（Acrobat等がファイルを掴んでいる可能性があるため、しばらく後に）
+        if delete_after:
+            threading.Timer(600, lambda: _safe_remove(pdf_path)).start()
 
 
 def _safe_remove(path):
@@ -314,6 +315,51 @@ def _safe_remove(path):
         os.remove(path)
     except Exception:
         pass
+
+
+# ── ファイル関連 ──
+DOCS = {}  # doc_id → /open で保存・表示したPDFのパス
+
+
+def decode_pdf(data):
+    try:
+        pdf = base64.b64decode(data.get('pdf_base64') or '')
+    except Exception:
+        return None, 'PDFデータが不正です'
+    if not pdf.startswith(b'%PDF-'):
+        return None, 'PDFデータが不正です'
+    return pdf, None
+
+
+def safe_filename(name):
+    name = re.sub(r'[\\/:*?"<>|]', '_', str(name or 'PO.pdf')).strip() or 'PO.pdf'
+    return name if name.lower().endswith('.pdf') else name + '.pdf'
+
+
+def downloads_dir():
+    # ダウンロードフォルダの実際の場所（OneDrive等へ移動されている場合も含む）をWindowsから取得
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r'Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders') as k:
+            path = os.path.expandvars(winreg.QueryValueEx(k, '{374DE290-123F-4565-9164-39C4925E467B}')[0])
+            if os.path.isdir(path):
+                return path
+    except OSError:
+        pass
+    path = os.path.join(os.path.expanduser('~'), 'Downloads')
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def unique_path(folder, filename):
+    # ブラウザのダウンロードと同じく、同名ファイルがあれば「名前 (1).pdf」形式で連番を付ける
+    base, ext = os.path.splitext(filename)
+    path = os.path.join(folder, filename)
+    n = 1
+    while os.path.exists(path):
+        path = os.path.join(folder, f'{base} ({n}){ext}')
+        n += 1
+    return path
 
 
 # ── HTTPサーバー ──
@@ -382,6 +428,26 @@ class Handler(BaseHTTPRequestHandler):
             save_config(cfg)
             return self._send(200, {'ok': True, 'printer': printer})
 
+        if self.path == '/open':
+            # マニュアル4-2と同じく、PDFを既定のアプリ（Acrobat）で開いて利用者に確認・修正してもらう。
+            # 保存先はダウンロードフォルダ（ブラウザでダウンロードしていた従来と同じ場所）。
+            # 利用者がAcrobatで修正・保存した後に /fax（doc_id指定）を呼ぶと、保存済みの最終版がFAXされる
+            pdf, err = decode_pdf(data)
+            if err:
+                return self._send(400, {'error': err})
+            pdf_path = unique_path(downloads_dir(), safe_filename(data.get('filename')))
+            with open(pdf_path, 'wb') as f:
+                f.write(pdf)
+            doc_id = uuid.uuid4().hex
+            with JOBS_LOCK:
+                DOCS[doc_id] = pdf_path
+            try:
+                os.startfile(pdf_path)
+            except Exception as e:
+                log.warning('PDFを開けませんでした: %s', e)
+                return self._send(200, {'ok': True, 'doc_id': doc_id, 'path': pdf_path, 'opened': False})
+            return self._send(200, {'ok': True, 'doc_id': doc_id, 'path': pdf_path, 'opened': True})
+
         if self.path == '/fax':
             numbers = [re.sub(r'\D', '', str(n)) for n in (data.get('fax_numbers') or [])]
             numbers = [n for n in numbers if len(n) >= 9]
@@ -390,28 +456,36 @@ class Handler(BaseHTTPRequestHandler):
             printer, _ = current_printer()
             if not printer:
                 return self._send(400, {'error': 'FAXプリンターが見つかりません（名前に「FAX」を含むプリンターを登録してください）'})
-            try:
-                pdf = base64.b64decode(data.get('pdf_base64') or '')
-            except Exception:
-                return self._send(400, {'error': 'PDFデータが不正です'})
-            if not pdf.startswith(b'%PDF-'):
-                return self._send(400, {'error': 'PDFデータが不正です'})
             with JOBS_LOCK:
                 busy = any(j['state'] in ('printing', 'filled') for j in JOBS.values())
             if busy:
                 return self._send(409, {'error': '前のFAX画面がまだ開いています。送信開始または送信中止してから再度お試しください。'})
 
-            safe_name = re.sub(r'[\\/:*?"<>|]', '_', data.get('filename') or 'PO.pdf')
             job_id = uuid.uuid4().hex
-            job_dir = os.path.join(tempfile.gettempdir(), APP_NAME, job_id)
-            os.makedirs(job_dir, exist_ok=True)
-            pdf_path = os.path.join(job_dir, safe_name)
-            with open(pdf_path, 'wb') as f:
-                f.write(pdf)
+            if data.get('doc_id'):
+                # /open で開いたファイル（利用者が修正・保存済みの場合はその最終版）をそのまま送る。利用者のファイルなので削除しない
+                with JOBS_LOCK:
+                    pdf_path = DOCS.get(data['doc_id'])
+                if not pdf_path or not os.path.exists(pdf_path):
+                    return self._send(400, {'error': 'PDFファイルが見つかりません（移動・削除された可能性があります）。P/O自動作成からやり直してください。'})
+                with open(pdf_path, 'rb') as f:
+                    if not f.read(5).startswith(b'%PDF-'):
+                        return self._send(400, {'error': 'PDFファイルが不正です'})
+                delete_after = False
+            else:
+                pdf, err = decode_pdf(data)
+                if err:
+                    return self._send(400, {'error': err})
+                job_dir = os.path.join(tempfile.gettempdir(), APP_NAME, job_id)
+                os.makedirs(job_dir, exist_ok=True)
+                pdf_path = os.path.join(job_dir, safe_filename(data.get('filename')))
+                with open(pdf_path, 'wb') as f:
+                    f.write(pdf)
+                delete_after = True
             name = str(data.get('recipient') or '')[:60]
             with JOBS_LOCK:
                 JOBS[job_id] = {'state': 'queued', 'message': '', 'printer': printer, 'numbers': numbers}
-            threading.Thread(target=run_fax_job, args=(job_id, pdf_path, numbers, name, printer), daemon=True).start()
+            threading.Thread(target=run_fax_job, args=(job_id, pdf_path, numbers, name, printer, delete_after), daemon=True).start()
             return self._send(200, {'ok': True, 'job_id': job_id, 'printer': printer})
 
         self._send(404, {'error': 'not found'})
