@@ -1810,9 +1810,12 @@ async function generateYangmingRecordPdf(ctx, terminal){
 // subjectには件名を動的に組み立てる関数（ctx→string）を指定できる（subjectPrefixより優先）
 // extraFileはExcelとは別にローカルへ自動保存する追加ファイル（PDF等）を返す関数（bytes,ctx）→{bytes,filename,mimeType}
 const XLSX_FILLERS = {
+  // greeting: メール本文冒頭の宛名（会社名の次の行に「ご担当者様」）
   'OSAKA_INTERASIA': { filler: fillInterasiaOsakaXlsx, defKey: 'OSAKA_INTERASIA', mailTo: 'osaka_empty@kamigumi.co.jp',
+    greeting: ['上組（株）南港C-9 ターミナル', 'ご担当者様'],
     subject: ctx => `IAL-Booking No, ${ctx.bkgNo} ピックアップオーダーのご送付` },
   'OSAKA_YANGMING':  { filler: fillYangmingOsakaXlsx,  defKey: 'OSAKA_YANGMING',  mailTo: 'export_osaka_c9@mitsui-koun.co.jp',
+    greeting: ['三井倉庫港運（株）南港C-9 ターミナル', 'ご担当者様'],
     subject: ctx => `[ピックアップオーダー送付 1件 BKG NO.${ctx.bkgNo}] ${ctx.vslName || ''} ${mdDow(ctx.pickupDate)}~ PICK UP 希望`,
     extraFile: async (bytes, ctx) => {
       const zip = await JSZip.loadAsync(bytes);
@@ -2478,7 +2481,7 @@ async function prepareXlsxMail(fileIndex, def, btnEl){
       to: contact.to || def.mailTo || '',
       cc: withDefaultCc(contact.cc),
       subject: def.subject ? def.subject(lastBkgContext) : `${def.subjectPrefix} ${lastBkgContext.bkgNo}`,
-      body: `お世話になっております。\n\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\n\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。\n\n\n${buildMailSignature()}`,
+      body: `${def.greeting ? def.greeting.join('\n') + '\n\n' : ''}お世話になっております。\n\nBOOKING# ${lastBkgContext.bkgNo}\nピックアップ希望日: ${lastBkgContext.pickupDate || '未定'}\n\nピックアップオーダーを添付にてお送りいたします。\nよろしくお願いいたします。\n\n\n${buildMailSignature()}`,
       bytes: filled,
       filename: `PO(${lastBkgContext.bkgNo}).xlsx`,
       extra
