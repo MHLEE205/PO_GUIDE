@@ -2263,9 +2263,12 @@ async function openPdfViaHelper(bytes, filename){
   try {
     const status = await faxHelperFetch('/status');
     if(!status?.ok || !faxHelperAtLeast(status.version, '1.1.0')) return false;
+    const target = currentFaxTarget();
     const res = await faxHelperFetch('/open', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ pdf_base64: bytesToBase64(bytes), filename })
+      // 送信先も渡し、ツールがPDFと同時に表示する確認ダイアログで使う（v1.2.0以降）
+      body: JSON.stringify({ pdf_base64: bytesToBase64(bytes), filename, fax_numbers: target.numbers,
+        recipient: `${lastBkgContext?.bkgNo || ''} ${target.name}`.trim() })
     }, 15000);
     _lastFilledPdf.docId = res.doc_id;
     _lastFilledPdf.savedPath = res.path;
@@ -2298,10 +2301,10 @@ async function renderFaxAutoArea(mode=''){
   if(manual) manual.style.display = 'none';
   const isOpened = mode === 'opened' && _lastFilledPdf?.docId;
   const canAuto = mode === 'auto' && target.numbers.length > 0;
-  const needUpdate = !faxHelperAtLeast(status.version, '1.1.0');
+  const needUpdate = !faxHelperAtLeast(status.version, '1.2.0');
   const openedNote = isOpened
     ? `<div style="font-size:12px;margin-bottom:6px;">📝 PDFを保存して${_lastFilledPdf.openedInApp ? '開きました' : '保存しました（自動で開けなかったため、下記ファイルを開いてください）'}：<code style="font-size:11px;">${escapeXmlText(_lastFilledPdf.savedPath || '')}</code><br>
-       内容を確認し、修正する場合は <strong>Acrobatで修正して保存（Ctrl+S）してから</strong> 下のボタンを押してください。保存した最終版がFAXされます。</div>` : '';
+       内容を確認し、修正する場合は <strong>PDFの画面で修正して保存（Ctrl+S）してから</strong>、画面中央の確認ウィンドウまたは下のボタンで「確認完了 → FAX画面を開く」を押してください。保存した最終版がFAXされます。</div>` : '';
   const mainBtnLabel = isOpened ? '📠 確認完了 → FAX画面を開く' : '🔁 FAX画面をもう一度開く';
   // 送信先の入力欄は通常は折りたたみ（FAX画面上でも確認・修正できるため）。番号が取れない場合のみ開いておく
   el.innerHTML = `<div style="border:1px solid var(--fax-border);border-radius:6px;padding:8px 10px;margin-bottom:8px;">
@@ -2309,7 +2312,7 @@ async function renderFaxAutoArea(mode=''){
     <div id="faxAutoStatus" style="font-size:13px;font-weight:700;margin-bottom:6px;"></div>
     <div style="font-size:12px;margin-bottom:6px;">送信先: <strong>${escapeXmlText(target.numbers.join(' / ') || '（FAX番号未設定）')}</strong>　${escapeXmlText(target.name)}</div>
     <button class="btn" style="background:var(--accent2);color:#fff;padding:${isOpened ? '9px 18px;font-weight:800' : '7px 14px;font-weight:700'};border-radius:6px;" onclick="sendFaxViaHelper(this)">${mainBtnLabel}</button>
-    ${needUpdate ? `<div style="font-size:11px;color:var(--warn);margin-top:6px;">⬆️ FAX自動入力ツールの新しいバージョンがあります（PDFを開いて修正してからFAXする機能）。トレイのアイコンから終了し、<a href="${FAX_HELPER_DOWNLOAD_URL}" style="color:var(--accent);">新しいバージョン</a>をダウンロードして実行してください。</div>` : ''}
+    ${needUpdate ? `<div style="font-size:11px;color:var(--warn);margin-top:6px;">⬆️ FAX自動入力ツールの新しいバージョンがあります（PDFを開いて確認・修正し、確認ウィンドウからFAXする機能）。トレイのアイコンから終了し、<a href="${FAX_HELPER_DOWNLOAD_URL}" style="color:var(--accent);">新しいバージョン</a>をダウンロードして実行してください。</div>` : ''}
     <details style="margin-top:6px;" ${target.numbers.length ? '' : 'open'}>
       <summary style="font-size:11px;color:var(--text2);cursor:pointer;">送信先を変更する</summary>
       <div class="edit-grid" style="margin-top:6px;">
@@ -2320,6 +2323,7 @@ async function renderFaxAutoArea(mode=''){
     <div style="font-size:10px;color:var(--text2);margin-top:6px;">🟢 FAX自動入力ツール接続中（v${escapeXmlText(status.version || '')}） ／ プリンター: ${printerSel}</div>
   </div>`;
   const reopenBtn = el.querySelector('button');
+  if(isOpened) watchDocFax(_lastFilledPdf.docId);
   if(canAuto) sendFaxViaHelper(reopenBtn);
   else if(!target.numbers.length) document.getElementById('faxAutoStatus').innerHTML =
     `<span style="color:var(--warn)">⚠️ FAX番号が見つかりません。「送信先を変更する」に番号を入力して「FAX画面をもう一度開く」を押してください。</span>`;
@@ -2354,22 +2358,47 @@ async function sendFaxViaHelper(btnEl){
         ? { doc_id: _lastFilledPdf.docId, fax_numbers: numbers, recipient }
         : { pdf_base64: bytesToBase64(_lastFilledPdf.bytes), filename: _lastFilledPdf.filename, fax_numbers: numbers, recipient })
     }, 15000);
-    const started = Date.now();
-    while(Date.now() - started < 11*60*1000){
-      await new Promise(r => setTimeout(r, 1000));
-      const job = await faxHelperFetch(`/job/${job_id}`);
-      if(job.state === 'filled')  show('✅ ' + job.message, 'var(--accent2)');
-      if(job.state === 'printing') show('⏳ ' + job.message);
-      if(job.state === 'manual')  show('⚠️ ' + job.message, 'var(--warn)');
-      if(job.state === 'closed' || job.state === 'timeout'){ show('ℹ️ ' + job.message, 'var(--text2)'); break; }
-      if(job.state === 'error'){ show('❌ ' + job.message, 'var(--warn)'); break; }
-    }
+    _lastFilledPdf.faxJobId = job_id;
+    await pollFaxJob(job_id, show);
   } catch(e) {
     show('❌ FAX自動入力エラー: ' + e.message + '（下の「印刷ダイアログを開く」から手動で送信できます）', 'var(--warn)');
     const manual = document.getElementById('faxPrintManual');
     if(manual) manual.style.display = '';
   } finally {
     btnEl.disabled = false;
+  }
+}
+
+// FAXジョブの進捗をツールから取得して表示（FAX画面が閉じられるまで）
+async function pollFaxJob(jobId, show){
+  const started = Date.now();
+  while(Date.now() - started < 11*60*1000){
+    await new Promise(r => setTimeout(r, 1000));
+    const job = await faxHelperFetch(`/job/${jobId}`);
+    if(job.state === 'filled')  show('✅ ' + job.message, 'var(--accent2)');
+    if(job.state === 'printing') show('⏳ ' + job.message);
+    if(job.state === 'manual')  show('⚠️ ' + job.message, 'var(--warn)');
+    if(job.state === 'closed' || job.state === 'timeout'){ show('ℹ️ ' + job.message, 'var(--text2)'); break; }
+    if(job.state === 'error'){ show('❌ ' + job.message, 'var(--warn)'); break; }
+  }
+}
+
+// ツールの確認ダイアログ（PDFと同時に最前面表示）から「確認完了 → FAX画面を開く」が押された場合も、サイト側に進捗を表示する
+async function watchDocFax(docId){
+  const statusEl = document.getElementById('faxAutoStatus');
+  const show = (msg, color='var(--text)') => { if(statusEl) statusEl.innerHTML = `<span style="color:${color}">${escapeXmlText(msg)}</span>`; };
+  const started = Date.now();
+  while(Date.now() - started < 60*60*1000){
+    await new Promise(r => setTimeout(r, 1500));
+    if(_lastFilledPdf?.docId !== docId) return; // 新しいP/Oに切り替わった
+    let doc;
+    try { doc = await faxHelperFetch(`/doc/${docId}`); } catch(e) { return; }
+    if(doc.job_id){
+      if(_lastFilledPdf.faxJobId === doc.job_id) return; // サイトのボタンで開始した分は sendFaxViaHelper 側で表示中
+      _lastFilledPdf.faxJobId = doc.job_id;
+      try { await pollFaxJob(doc.job_id, show); } catch(e) {}
+      return;
+    }
   }
 }
 

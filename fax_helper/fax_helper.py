@@ -34,7 +34,7 @@ import win32event
 import win32gui
 import win32print
 
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 PORT = 18765
 ALLOWED_ORIGINS = {'https://mhlee205.github.io'}
 PROFILES_URL = 'https://mhlee205.github.io/PO_GUIDE/fax_helper/profiles.json'
@@ -318,7 +318,7 @@ def _safe_remove(path):
 
 
 # ── ファイル関連 ──
-DOCS = {}  # doc_id → /open で保存・表示したPDFのパス
+DOCS = {}  # doc_id → {path, numbers, recipient, job_id, dialog}（/open で保存・表示したPDF）
 
 
 def decode_pdf(data):
@@ -409,6 +409,13 @@ class Handler(BaseHTTPRequestHandler):
             with JOBS_LOCK:
                 job = dict(JOBS.get(m.group(1)) or {})
             return self._send(200 if job else 404, job or {'error': 'not found'})
+        # /open で開いたPDFの状態（確認ダイアログから開始したFAXのjob_idを含む。サイト側がポーリングして進捗表示に使う）
+        m = re.fullmatch(r'/doc/([0-9a-f]+)', self.path)
+        if m:
+            with JOBS_LOCK:
+                doc = DOCS.get(m.group(1))
+                info = {'job_id': doc.get('job_id'), 'dialog': doc.get('dialog')} if doc else None
+            return self._send(200 if info else 404, info or {'error': 'not found'})
         self._send(404, {'error': 'not found'})
 
     def do_POST(self):
@@ -429,9 +436,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {'ok': True, 'printer': printer})
 
         if self.path == '/open':
-            # マニュアル4-2と同じく、PDFを既定のアプリ（Acrobat）で開いて利用者に確認・修正してもらう。
-            # 保存先はダウンロードフォルダ（ブラウザでダウンロードしていた従来と同じ場所）。
-            # 利用者がAcrobatで修正・保存した後に /fax（doc_id指定）を呼ぶと、保存済みの最終版がFAXされる
+            # マニュアル4-2と同じく、PDFを既定のアプリ（Acrobat/Foxit等）で開いて利用者に確認・修正してもらい、
+            # 同時に最前面の確認ダイアログを表示。「確認完了 → FAX画面を開く」で保存済みの最終版をFAXする。
+            # 保存先はダウンロードフォルダ（ブラウザでダウンロードしていた従来と同じ場所）
             pdf, err = decode_pdf(data)
             if err:
                 return self._send(400, {'error': err})
@@ -439,56 +446,150 @@ class Handler(BaseHTTPRequestHandler):
             with open(pdf_path, 'wb') as f:
                 f.write(pdf)
             doc_id = uuid.uuid4().hex
+            doc = {'path': pdf_path, 'job_id': None, 'dialog': None,
+                   'numbers': clean_numbers(data.get('fax_numbers')),
+                   'recipient': str(data.get('recipient') or '')[:60]}
             with JOBS_LOCK:
-                DOCS[doc_id] = pdf_path
+                # 前回の確認ダイアログが残っていれば閉じる（新しいP/Oに切り替わったため）
+                for old in DOCS.values():
+                    if old.get('dialog') == 'open':
+                        old['dialog'] = 'close_requested'
+                DOCS[doc_id] = doc
+            opened = True
             try:
                 os.startfile(pdf_path)
             except Exception as e:
                 log.warning('PDFを開けませんでした: %s', e)
-                return self._send(200, {'ok': True, 'doc_id': doc_id, 'path': pdf_path, 'opened': False})
-            return self._send(200, {'ok': True, 'doc_id': doc_id, 'path': pdf_path, 'opened': True})
+                opened = False
+            if doc['numbers']:
+                doc['dialog'] = 'open'
+                threading.Thread(target=show_confirm_dialog, args=(doc_id,), daemon=True).start()
+            return self._send(200, {'ok': True, 'doc_id': doc_id, 'path': pdf_path, 'opened': opened})
 
         if self.path == '/fax':
-            numbers = [re.sub(r'\D', '', str(n)) for n in (data.get('fax_numbers') or [])]
-            numbers = [n for n in numbers if len(n) >= 9]
-            if not numbers:
-                return self._send(400, {'error': 'FAX番号がありません'})
-            printer, _ = current_printer()
-            if not printer:
-                return self._send(400, {'error': 'FAXプリンターが見つかりません（名前に「FAX」を含むプリンターを登録してください）'})
-            with JOBS_LOCK:
-                busy = any(j['state'] in ('printing', 'filled') for j in JOBS.values())
-            if busy:
-                return self._send(409, {'error': '前のFAX画面がまだ開いています。送信開始または送信中止してから再度お試しください。'})
-
-            job_id = uuid.uuid4().hex
+            numbers = clean_numbers(data.get('fax_numbers'))
+            name = str(data.get('recipient') or '')[:60]
             if data.get('doc_id'):
-                # /open で開いたファイル（利用者が修正・保存済みの場合はその最終版）をそのまま送る。利用者のファイルなので削除しない
-                with JOBS_LOCK:
-                    pdf_path = DOCS.get(data['doc_id'])
-                if not pdf_path or not os.path.exists(pdf_path):
-                    return self._send(400, {'error': 'PDFファイルが見つかりません（移動・削除された可能性があります）。P/O自動作成からやり直してください。'})
-                with open(pdf_path, 'rb') as f:
-                    if not f.read(5).startswith(b'%PDF-'):
-                        return self._send(400, {'error': 'PDFファイルが不正です'})
-                delete_after = False
+                # /open で開いたファイル（利用者が修正・保存済みの場合はその最終版）をそのまま送る
+                job_id, err, code = start_doc_fax(data['doc_id'], numbers, name)
             else:
                 pdf, err = decode_pdf(data)
                 if err:
                     return self._send(400, {'error': err})
-                job_dir = os.path.join(tempfile.gettempdir(), APP_NAME, job_id)
-                os.makedirs(job_dir, exist_ok=True)
-                pdf_path = os.path.join(job_dir, safe_filename(data.get('filename')))
+                tmp_dir = os.path.join(tempfile.gettempdir(), APP_NAME, uuid.uuid4().hex)
+                os.makedirs(tmp_dir, exist_ok=True)
+                pdf_path = os.path.join(tmp_dir, safe_filename(data.get('filename')))
                 with open(pdf_path, 'wb') as f:
                     f.write(pdf)
-                delete_after = True
-            name = str(data.get('recipient') or '')[:60]
-            with JOBS_LOCK:
-                JOBS[job_id] = {'state': 'queued', 'message': '', 'printer': printer, 'numbers': numbers}
-            threading.Thread(target=run_fax_job, args=(job_id, pdf_path, numbers, name, printer, delete_after), daemon=True).start()
-            return self._send(200, {'ok': True, 'job_id': job_id, 'printer': printer})
+                job_id, err, code = start_fax_job(pdf_path, numbers, name, delete_after=True)
+            if err:
+                return self._send(code, {'error': err})
+            return self._send(200, {'ok': True, 'job_id': job_id})
 
         self._send(404, {'error': 'not found'})
+
+
+def clean_numbers(values):
+    numbers = [re.sub(r'\D', '', str(n)) for n in (values or [])]
+    return [n for n in numbers if len(n) >= 9]
+
+
+def start_fax_job(pdf_path, numbers, name, delete_after):
+    """FAXジョブを開始して (job_id, エラー文, HTTPコード) を返す"""
+    if not numbers:
+        return None, 'FAX番号がありません', 400
+    printer, _ = current_printer()
+    if not printer:
+        return None, 'FAXプリンターが見つかりません（名前に「FAX」を含むプリンターを登録してください）', 400
+    with JOBS_LOCK:
+        if any(j['state'] in ('queued', 'printing', 'filled') for j in JOBS.values()):
+            return None, '前のFAX画面がまだ開いています。送信開始または送信中止してから再度お試しください。', 409
+        job_id = uuid.uuid4().hex
+        JOBS[job_id] = {'state': 'queued', 'message': '', 'printer': printer, 'numbers': numbers}
+    threading.Thread(target=run_fax_job, args=(job_id, pdf_path, numbers, name, printer, delete_after), daemon=True).start()
+    return job_id, None, 200
+
+
+def start_doc_fax(doc_id, numbers=None, name=None):
+    """/open で開いたPDFをFAXする（サイトのボタン・確認ダイアログ共通）。利用者のファイルなので削除しない"""
+    with JOBS_LOCK:
+        doc = DOCS.get(doc_id)
+    if not doc or not os.path.exists(doc['path']):
+        return None, 'PDFファイルが見つかりません（移動・削除された可能性があります）。P/O自動作成からやり直してください。', 400
+    with open(doc['path'], 'rb') as f:
+        if not f.read(5).startswith(b'%PDF-'):
+            return None, 'PDFファイルが不正です', 400
+    numbers = numbers or doc['numbers']
+    name = name if name is not None else doc['recipient']
+    job_id, err, code = start_fax_job(doc['path'], numbers, name, delete_after=False)
+    if job_id:
+        with JOBS_LOCK:
+            doc['job_id'] = job_id
+            if doc.get('dialog') == 'open':
+                doc['dialog'] = 'close_requested'  # サイトのボタンで開始した場合は確認ダイアログを閉じる
+    return job_id, err, code
+
+
+# ── 確認ダイアログ（マニュアル4-2のPDF確認ダイアログに相当） ──
+def show_confirm_dialog(doc_id):
+    import tkinter as tk
+
+    with JOBS_LOCK:
+        doc = DOCS[doc_id]
+    font = ('Yu Gothic UI', 10)
+    root = tk.Tk()
+    root.title('POFaxHelper - FAX送信の確認')
+    root.attributes('-topmost', True)
+    root.resizable(False, False)
+    root.configure(padx=14, pady=12)
+
+    tk.Label(root, text=f'📄 {os.path.basename(doc["path"])} を開きました', font=('Yu Gothic UI', 10, 'bold'),
+             anchor='w', justify='left').pack(fill='x')
+    tk.Label(root, text=f'送信先: {" / ".join(doc["numbers"])}　{doc["recipient"]}', font=font,
+             anchor='w', justify='left', wraplength=420).pack(fill='x', pady=(4, 0))
+    tk.Label(root, text='PDFを修正した場合は、先にPDFの画面で保存（Ctrl+S）してから押してください。',
+             font=('Yu Gothic UI', 9), fg='#b45309', anchor='w', justify='left', wraplength=420).pack(fill='x', pady=(6, 8))
+    msg = tk.Label(root, text='', font=('Yu Gothic UI', 9), fg='#b91c1c', anchor='w', justify='left', wraplength=420)
+    btns = tk.Frame(root)
+    btns.pack(fill='x')
+
+    def close(state='closed'):
+        with JOBS_LOCK:
+            doc['dialog'] = state
+        root.destroy()
+
+    def on_fax():
+        # FAX画面への自動キー入力がこのダイアログに入らないよう、先に閉じてから開始する
+        root.withdraw()
+        job_id, err, _ = start_doc_fax(doc_id)
+        if err:
+            root.deiconify()
+            msg.config(text=err)
+            msg.pack(fill='x', pady=(8, 0))
+            return
+        close('done')
+
+    tk.Button(btns, text='📠 確認完了 → FAX画面を開く', font=('Yu Gothic UI', 10, 'bold'), bg='#16a34a', fg='white',
+              activebackground='#15803d', activeforeground='white', padx=12, pady=4, command=on_fax).pack(side='left')
+    tk.Button(btns, text='取消', font=font, padx=10, pady=4, command=close).pack(side='left', padx=(8, 0))
+    root.protocol('WM_DELETE_WINDOW', close)
+
+    # 画面中央に表示（見落とさないように）
+    root.update_idletasks()
+    w, h = root.winfo_reqwidth(), root.winfo_reqheight()
+    root.geometry(f'+{(root.winfo_screenwidth() - w) // 2}+{(root.winfo_screenheight() - h) // 2}')
+
+    def watch():
+        # サイト側のボタンでFAXを開始した・新しいP/Oが開かれた場合は自動で閉じる
+        with JOBS_LOCK:
+            requested = doc.get('dialog') == 'close_requested'
+        if requested:
+            close('closed')
+        else:
+            root.after(300, watch)
+
+    root.after(300, watch)
+    root.mainloop()
 
 
 # ── スタートアップ登録 ──
