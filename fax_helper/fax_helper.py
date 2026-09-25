@@ -30,10 +30,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import win32api
 import win32clipboard
 import win32con
+import win32event
 import win32gui
 import win32print
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 PORT = 18765
 ALLOWED_ORIGINS = {'https://mhlee205.github.io'}
 PROFILES_URL = 'https://mhlee205.github.io/PO_GUIDE/fax_helper/profiles.json'
@@ -449,15 +450,33 @@ def unregister_startup():
         pass
 
 
+class ExclusiveServer(ThreadingHTTPServer):
+    # Windowsでは SO_REUSEADDR を付けると同じポートを複数プロセスが同時にbindできてしまい、
+    # 多重起動を検出できないため無効化する
+    allow_reuse_address = False
+
+
+def notify_already_running():
+    win32api.MessageBox(0, 'POFaxHelperは既に起動しています。\n画面右下のタスクトレイ（^）に常駐しています。',
+                        'POFaxHelper', win32con.MB_OK | win32con.MB_ICONINFORMATION)
+
+
 def main():
+    # 多重起動防止（exeを何度もダブルクリックしても1つだけ動くようにする）
+    mutex = win32event.CreateMutex(None, False, 'Local\\POFaxHelper_SingleInstance')
+    if win32api.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
+        log.info('already running (mutex)')
+        notify_already_running()
+        return
     try:
-        server = ThreadingHTTPServer(('127.0.0.1', PORT), Handler)
+        server = ExclusiveServer(('127.0.0.1', PORT), Handler)
     except OSError:
-        # 既に起動済み（ポート使用中）なら何もせず終了
-        log.info('already running')
+        log.info('already running (port in use)')
+        notify_already_running()
         return
     cfg = load_config()
-    if not cfg.get('startup_asked'):
+    # 初回は自動登録。登録済みの場合も、exeを移動・更新したときに備えて現在のexeパスで登録し直す
+    if not cfg.get('startup_asked') or is_startup_registered():
         register_startup()
         cfg['startup_asked'] = True
         save_config(cfg)
@@ -495,7 +514,16 @@ def main():
         pystray.MenuItem('Windows起動時に自動起動', toggle_startup, checked=lambda item: is_startup_registered()),
         pystray.MenuItem('終了', quit_app),
     )
-    pystray.Icon(APP_NAME, img, 'POFaxHelper（P/O FAX自動入力）', menu).run()
+    def on_ready(icon):
+        icon.visible = True
+        # 画面を持たない常駐ツールのため、起動したことが分かるよう通知を出す
+        try:
+            icon.notify('起動しました。タスクトレイに常駐し、PO_GUIDEからのFAX自動入力を待ち受けます。', 'POFaxHelper')
+        except Exception:
+            pass
+
+    pystray.Icon(APP_NAME, img, 'POFaxHelper（P/O FAX自動入力）', menu).run(setup=on_ready)
+    del mutex
 
 
 if __name__ == '__main__':
