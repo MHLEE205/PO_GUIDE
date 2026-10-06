@@ -1132,7 +1132,7 @@ function mdDow(dateStr){
 // フォームで日本語を出す場合はこの関数を使う（renderHtmlToPdf()と同じ「ブラウザに描画させる」方式）
 // rotateDeg: 回転ページ用にdrawTextのrotate相当を再現（0以外の場合、descentのオフセット方向も回転させる）
 // maxWidthPt: 指定した場合、その幅に収まるようフォントサイズを自動縮小する
-async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0.75,0,0], rotateDeg=0, maxWidthPt=null){
+async function drawJpText(pdfDoc, page, text, x, y, size=11, color=[0,0,0.6], rotateDeg=0, maxWidthPt=null){
   if(!text) return;
   const scale = 4; // 高解像度化して縮小配置しギザギザを防ぐ
   const measure = document.createElement('canvas').getContext('2d');
@@ -1321,7 +1321,7 @@ async function fillCncKobePdf(bytes, ctx){
     try {
       // 標準フォント(WinAnsi)は日本語等を描画できないため、非対応文字は"?"に置換する
       const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
-      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+      page.drawText(safe, { x, y, size, font, color: rgb(0,0,0.6) });
     } catch(e) {
       console.warn('PDF記入をスキップ:', text, e.message);
     }
@@ -1334,7 +1334,7 @@ async function fillCncKobePdf(bytes, ctx){
   {
     const itemLabel = (ctx.itemName || '').toUpperCase().startsWith('USED CLOTH') ? 'USED CLOTHING(古着)' : 'WASTE PAPER(古紙)';
     page.drawRectangle({ x: 225, y: 528, width: 270, height: 15, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, `${itemLabel} / BALES`, 227.6, 529.5, 11, [0.75,0,0], 0, 260);
+    await drawJpText(pdfDoc, page, `${itemLabel} / BALES`, 227.6, 529.5, 11, [0,0,0.6], 0, 260);
   }
   draw(ctx.voyNo ? `${ctx.vslName}  VOY ${ctx.voyNo}` : ctx.vslName, 232, 620, 11); // 本船名／VOY NO.欄（1セル共用）
   draw(ctx.bkgNo,   232, 584, 11);
@@ -1369,7 +1369,7 @@ async function fillTatsumiOsakaPdf(bytes, ctx){
     if(!text) return;
     try {
       const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
-      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+      page.drawText(safe, { x, y, size, font, color: rgb(0,0,0.6) });
     } catch(e) {
       console.warn('PDF記入をスキップ:', text, e.message);
     }
@@ -1382,7 +1382,7 @@ async function fillTatsumiOsakaPdf(bytes, ctx){
   {
     const itemLabel = (ctx.itemName || '').toUpperCase().startsWith('USED CLOTH') ? 'USED CLOTHING(古着)' : 'WASTE PAPER(古紙)';
     page.drawRectangle({ x: 185, y: 209.2, width: 300, height: 16.8, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, itemLabel, 193.9, 211, 11, [0.75,0,0], 0, 290);
+    await drawJpText(pdfDoc, page, itemLabel, 193.9, 211, 11, [0,0,0.6], 0, 290);
   }
   draw(ctx.vslName, 185, 584.5, 11);
   draw(ctx.voyNo,   185, 565.2, 11);
@@ -1412,7 +1412,7 @@ async function fillKmtcKobePdf(bytes, ctx){
     if(!text) return;
     try {
       const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
-      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+      page.drawText(safe, { x, y, size, font, color: rgb(0,0,0.6) });
     } catch(e) {
       console.warn('PDF記入をスキップ:', text, e.message);
     }
@@ -1442,7 +1442,7 @@ async function fillSinokorKobePdf(bytes, ctx){
     if(!text) return;
     try {
       const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
-      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+      page.drawText(safe, { x, y, size, font, color: rgb(0,0,0.6) });
     } catch(e) {
       console.warn('PDF記入をスキップ:', text, e.message);
     }
@@ -1471,7 +1471,7 @@ async function fillKmtcTokyoPdf(bytes, ctx){
     if(!text) return;
     try {
       const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
-      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0), rotate: degrees(-90) });
+      page.drawText(safe, { x, y, size, font, color: rgb(0,0,0.6), rotate: degrees(-90) });
     } catch(e) {
       console.warn('PDF記入をスキップ:', text, e.message);
     }
@@ -1484,7 +1484,7 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   {
     const itemLabel = (ctx.itemName || '').toUpperCase().startsWith('USED CLOTH') ? 'USED CLOTHING(古着)' : 'WASTE PAPER(古紙)';
     page.drawRectangle({ x: 207, y: 468, width: 25, height: 158.4, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, itemLabel, 214.3, 621.7, 14, [0.75,0,0], -90, 150);
+    await drawJpText(pdfDoc, page, itemLabel, 214.3, 621.7, 14, [0,0,0.6], -90, 150);
   }
   draw(ctx.vslName, 462.4, 632.4, 14); // 本船名欄
   draw(ctx.voyNo,   462.4, 376.4, 14); // VOY. NO.欄
@@ -1504,12 +1504,12 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   draw(pickup.day,   284.4, 552.4, 14); // 搬出日欄（日）
   if(ctx.containerQty) draw(ctx.containerQty, 180.0, 371.6, 12); // 40'HQ本数欄
   // 担当者欄（TEL/FAX欄の下、幅約63pt。長い氏名でも収まるようやや小さめのフォントサイズを使用）
-  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 383, 408, 8, [0.75,0,0], -90, 60);
+  if(ctx.staffName) await drawJpText(pdfDoc, page, ctx.staffName, 383, 408, 8, [0,0,0.6], -90, 60);
   // バン詰め場所欄（フォーム自体に「東京都足立区」が印字済みのため、常に白塗りして選択内容で描き直す。
   // 日本語を含むためdrawJpText()でラスタライズ描画する）
   if(ctx.vanningPlace){
     page.drawRectangle({ x: 311, y: 460, width: 30, height: 200, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, ctx.vanningPlace, 318.6, 654.0, 10, [0.75,0,0], -90, 190);
+    await drawJpText(pdfDoc, page, ctx.vanningPlace, 318.6, 654.0, 10, [0,0,0.6], -90, 190);
   }
   // 右列の空白欄（「@ CK LINE」の下〜「冷凍コンテナ」の上）に、改行区切りのメモを1行ずつ記入。
   // 回転ページのため視覚的な1段下＝x座標を減算。y=264が欄の左端、幅約195pt
@@ -1517,7 +1517,7 @@ async function fillKmtcTokyoPdf(bytes, ctx){
   if(ctx.memo){
     const lines = String(ctx.memo).split('\n').slice(0, MEMO_LINE_X.length);
     for(let i=0; i<lines.length; i++){
-      if(lines[i]) await drawJpText(pdfDoc, page, lines[i], MEMO_LINE_X[i], 264, 10, [0.75,0,0], -90, 195);
+      if(lines[i]) await drawJpText(pdfDoc, page, lines[i], MEMO_LINE_X[i], 264, 10, [0,0,0.6], -90, 195);
     }
   }
   return pdfDoc.save();
@@ -1536,7 +1536,7 @@ async function fillYangmingTokyoPdf(bytes, ctx){
     try {
       // 標準フォント(WinAnsi)は日本語等を描画できないため、非対応文字は"?"に置換する
       const safe = String(text).replace(/[^\x00-\xFF]/g, '?');
-      page.drawText(safe, { x, y, size, font, color: rgb(0.75,0,0) });
+      page.drawText(safe, { x, y, size, font, color: rgb(0,0,0.6) });
     } catch(e) {
       console.warn('PDF記入をスキップ:', text, e.message);
     }
@@ -1547,7 +1547,7 @@ async function fillYangmingTokyoPdf(bytes, ctx){
   {
     const itemLabel = (ctx.itemName || '').toUpperCase().startsWith('USED CLOTH') ? 'USED CLOTHING(古着)' : 'WASTE PAPER(古紙)';
     page.drawRectangle({ x: 150, y: 483, width: 190, height: 17, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, itemLabel, 154, 485.5, 11, [0.75,0,0], 0, 180);
+    await drawJpText(pdfDoc, page, itemLabel, 154, 485.5, 11, [0,0,0.6], 0, 180);
   }
   draw(ctx.bkgNo,   167, 610.7, 11); // BOOKING NO.欄
   draw(ctx.vslName, 169, 583.0, 11); // 本船名欄
@@ -1575,7 +1575,7 @@ async function fillYangmingTokyoPdf(bytes, ctx){
   // 日本語を含むためdrawJpText()でラスタライズ描画する）
   if(ctx.vanningPlace){
     page.drawRectangle({ x: 147, y: 98, width: 166, height: 25.5, color: rgb(1,1,1) });
-    await drawJpText(pdfDoc, page, ctx.vanningPlace, 157.9, 101, 11, [0.75,0,0], 0, 150);
+    await drawJpText(pdfDoc, page, ctx.vanningPlace, 157.9, 101, 11, [0,0,0.6], 0, 150);
   }
   return pdfDoc.save();
 }
