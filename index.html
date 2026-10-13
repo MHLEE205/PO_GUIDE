@@ -1641,7 +1641,7 @@ const XLSX_FILLERS = {
       return { bytes: await generateYangmingRecordPdf(ctx, terminal), filename: `PO(${ctx.bkgNo}).pdf`, mimeType: 'application/pdf' };
     } },
   'TOKYO_HAPAG-LLOYD':{ filler: fillHapagTokyoXlsx,     defKey: 'TOKYO_HAPAGLLOYD',    mailTo: 'nittsu-tyooffdock-hldpick@nipponexpress.com',
-    greeting: ['日本通運（株）京浜港ターミナル支店 東京事業所 東京港運チーム', 'ご担当者様'],
+    greeting: ['日本通運㈱京浜港ターミナル支店', '東京事業所 東京港運チーム', 'ご担当者様'],
     subject: ctx => `[HLD ピックアップオーダー BKG NO.${ctx.bkgNo}] ${ctx.vslName || ''} ${ctx.voyNo || ''} ${mdDow(ctx.pickupDate)}~ PICK UP 希望`.replace(/\s+/g,' ') },
 };
 
