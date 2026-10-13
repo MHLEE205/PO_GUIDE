@@ -654,6 +654,25 @@
       </div>
     </div>
 
+    <div class="card" id="card-HAPAG-TOKYO" data-port="TOKYO" data-carrier="hapag-lloyd hapag lloyd hld" data-carrier-key="HAPAG">
+      <div class="card-header">
+        <div class="carrier-icon" style="background:#3a2a14;color:#f0a35b;">HL</div>
+        <div><div class="carrier-name" style="font-size:15.4px;">HAPAG-LLOYD</div><div class="carrier-sub">東京港</div></div>
+        <span class="method-badge method-mail">📧 メール</span>
+      </div>
+      <div class="card-body">
+        <div class="card-row"><div class="card-key">宛先</div><div class="card-val">日本通運 京浜港ターミナル支店 東京港運チーム</div></div>
+        <div class="card-row"><div class="card-key">メール</div><div class="card-val"><a href="mailto:nittsu-tyooffdock-hldpick@nipponexpress.com?cc=rcp@leenearcorp.com">nittsu-tyooffdock-hldpick@nipponexpress.com</a></div></div>
+        <div class="card-row"><div class="card-key">添付</div><div class="card-val">HAPAG-LLOYD TOKYO.xlsx（HLD専用フォーム）</div></div>
+        <div class="card-row"><div class="card-key">自動入力</div><div class="card-val">本船名・VOY NO.・BOOKING NO.・御担当・搬出希望日（月/日）・40'(96)本数・荷揚げ港・最終仕向地・バンニング場所・リマーク</div></div>
+        <div class="card-row"><div class="card-key">特記</div><div class="card-val">申込みは引取日の前日15:00まで（特殊バンは2日前、土日祝除く）。FAX返信でピック場所の案内あり。TEL: 03-3799-3005</div></div>
+      </div>
+      <div class="card-footer">
+        <a class="btn btn-mail" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgB8cz52SBTWQobOuxufNfIMAU0ho7apVMwmnGzHt9eU624?e=IVVUF7" target="_blank">📥 Excelフォーム</a>
+        <a class="btn btn-mail" href="mailto:nittsu-tyooffdock-hldpick@nipponexpress.com?cc=rcp@leenearcorp.com">✉ メール作成</a>
+      </div>
+    </div>
+
   </div><!-- /cards-grid -->
 
   <!-- ── Notes ── -->
@@ -1440,6 +1459,31 @@ async function fillYangmingOsakaXlsx(bytes, ctx){
   return zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
 }
 
+// HAPAG-LLOYD東京フォーム（PICK UP ORDER(HLD)シート、日本通運 京浜港ターミナル支店宛）への自動入力
+// 対象セルは sample/TOKYO/HAPAG-LLOYD TOKYO.xlsx（過去実績記入済）のxl/worksheets/sheet1.xmlを直接解析して特定。
+// テンプレート側で空欄のセルにも書けるよう、セルが無ければ追加するxlsxSetOrAdd系を使う
+// （申し込み会社・SHIPPER・電話/FAX番号・ドレージ会社名はテンプレートの記入値をそのまま使用）
+async function fillHapagTokyoXlsx(bytes, ctx){
+  const zip = await JSZip.loadAsync(bytes);
+  const sheetPath = 'xl/worksheets/sheet1.xml'; // =「PICK UP ORDER(HLD)」シート（workbook.xmlのrId1）
+  let xml = await zip.file(sheetPath).async('string');
+  const pickup = mdParts(ctx.pickupDate);
+  xml = xlsxSetOrAddCell(xml, 'H7',  ctx.vslName || '');   // 本船名
+  xml = xlsxSetOrAddCell(xml, 'V7',  ctx.voyNo   || '');   // VOY NO.
+  xml = xlsxSetOrAddCell(xml, 'H10', ctx.bkgNo   || '');   // BOOKING NO.
+  if(ctx.staffName) xml = xlsxSetOrAddCell(xml, 'V16', ctx.staffName); // 御担当
+  if(pickup.month) xml = xlsxSetOrAddNumberCell(xml, 'J23', Number(pickup.month)); // 搬出希望日（月）
+  if(pickup.day)   xml = xlsxSetOrAddNumberCell(xml, 'P23', Number(pickup.day));   // 搬出希望日（日）
+  if(ctx.containerQty) xml = xlsxSetOrAddNumberCell(xml, 'Q31', Number(ctx.containerQty)); // 40/96本数
+  xml = xlsxSetOrAddCell(xml, 'H34', ctx.dischargePort || ctx.pod || ''); // 荷揚げ港
+  xml = xlsxSetOrAddCell(xml, 'V34', ctx.pod || '');                      // 最終仕向地
+  xml = xlsxSetOrAddCell(xml, 'H36', ctx.vanningPlace || '');             // バンニング場所
+  // リマーク欄（1セル。改行は全角スペースでつないで1行にする）
+  xml = xlsxSetOrAddCell(xml, 'H38', String(ctx.memo || '').split('\n').map(s=>s.trim()).filter(Boolean).join('　'));
+  zip.file(sheetPath, xml);
+  return zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{ level:6 } });
+}
+
 // YANGMING大阪フォームの「Sheet1」タブ（本船名→搬出先／搬入先の対応マスタ、A1:D12）を解析
 // 新しい本船名が追加された場合はこのシートに1行追加するだけで自動反映される
 async function parseYangmingTerminalTable(zip){
@@ -1596,6 +1640,9 @@ const XLSX_FILLERS = {
       const terminal = table[(ctx.vslName || '').trim().toUpperCase()] || { out:'', in:'' };
       return { bytes: await generateYangmingRecordPdf(ctx, terminal), filename: `PO(${ctx.bkgNo}).pdf`, mimeType: 'application/pdf' };
     } },
+  'TOKYO_HAPAG':     { filler: fillHapagTokyoXlsx,     defKey: 'TOKYO_HAPAG',     mailTo: 'nittsu-tyooffdock-hldpick@nipponexpress.com',
+    greeting: ['日本通運（株）京浜港ターミナル支店 東京事業所 東京港運チーム', 'ご担当者様'],
+    subject: ctx => `[HLD ピックアップオーダー BKG NO.${ctx.bkgNo}] ${ctx.vslName || ''} ${ctx.voyNo || ''} ${mdDow(ctx.pickupDate)}~ PICK UP 希望`.replace(/\s+/g,' ') },
 };
 
 // PO EXCEL.xlsx の列インデックス変換（A→0, B→1, ...）
@@ -1816,12 +1863,23 @@ async function saveContactEditor(){
 // 既存セルの有無やt属性(共有文字列/数値等)に関わらず対応し、セルが存在しない場合は
 // OOXMLの仕様通り列順を保った位置に新規セルを挿入する
 function xlsxSetOrAddCell(xml, addr, value){
+  return xlsxPutCell(xml, addr, style => `<c r="${addr}"${style} t="inlineStr"><is><t xml:space="preserve">${escapeXmlText(value||'')}</t></is></c>`);
+}
+
+// xlsxSetOrAddCellの数値版（日付の月/日・本数など、Excel上で数値として扱いたいセル用）
+function xlsxSetOrAddNumberCell(xml, addr, num){
+  return xlsxPutCell(xml, addr, style => `<c r="${addr}"${style}><v>${Number(num)}</v></c>`);
+}
+
+// 指定セルを buildCell(既存スタイル属性文字列) が返すXMLで置換、無ければ列順を保って挿入する共通処理
+function xlsxPutCell(xml, addr, buildCell){
   const rowNum = addr.match(/\d+/)[0];
   const colLetter = addr.match(/[A-Z]+/)[0];
-  const cellRe = new RegExp(`<c r="${addr}"[^>]*>[\\s\\S]*?</c>|<c r="${addr}"[^>]*/>`);
+  // 自己終了タグ(<c .../>)を先に判定する（逆順だと次のセルの</c>まで巻き込んで消してしまうため）
+  const cellRe = new RegExp(`<c r="${addr}"[^>]*/>|<c r="${addr}"(?:\\s[^>]*)?(?<!/)>[\\s\\S]*?</c>`);
   const styleMatch = xml.match(new RegExp(`<c r="${addr}"[^>]*\\bs="(\\d+)"`));
   const style = styleMatch ? ` s="${styleMatch[1]}"` : '';
-  const cellXml = `<c r="${addr}"${style} t="inlineStr"><is><t xml:space="preserve">${escapeXmlText(value||'')}</t></is></c>`;
+  const cellXml = buildCell(style);
   if(cellRe.test(xml)) return xml.replace(cellRe, cellXml);
   const rowRe = new RegExp(`<row[^>]*\\br="${rowNum}"[^>]*>[\\s\\S]*?</row>`);
   const rowMatch = xml.match(rowRe);
@@ -1829,7 +1887,7 @@ function xlsxSetOrAddCell(xml, addr, value){
   const rowXml = rowMatch[0];
   const targetIdx = xlsxColIdx(colLetter);
   let insertBefore = null;
-  for(const cM of rowXml.matchAll(/<c r="([A-Z]+)\d+"[^>]*\/?>(?:[\s\S]*?<\/c>)?/g)){
+  for(const cM of rowXml.matchAll(/<c r="([A-Z]+)\d+"(?:[^>]*\/>|[^>]*>[\s\S]*?<\/c>)/g)){
     if(xlsxColIdx(cM[1]) > targetIdx){ insertBefore = cM[0]; break; }
   }
   const newRowXml = insertBefore
@@ -2535,7 +2593,8 @@ async function searchBkg(){
         port:         matchedPort,
         carrierKey:   matchedKey,
         memo:         isTatsumiOsaka ? '恐れ入りますが、受領後ご返信をお願いいたします。' : '', // 辰巳商会フォームの「要望事項」欄デフォルト文言
-        dischargePort: 'KAOHSIUNG', // 陸揚港（T/S）欄。TOKYO YANGMINGフォームのみ使用、通常はKAOHSIUNG T/S固定だが編集可
+        // 陸揚港（T/S）欄。TOKYO YANGMINGフォームは通常KAOHSIUNG T/S固定、TOKYO HAPAGフォーム（荷揚げ港）は仕向地と同じ値が初期値。いずれも編集可
+        dischargePort: matchedKey === 'HAPAG' ? (podName === '(未取得)' ? '' : podName) : 'KAOHSIUNG',
         staffName:    getStaffName(), // 担当者名欄。ログイン中のCOMPASSアカウント名をデフォルトにし、編集可能
         itemName:     'WASTE PAPER(古紙)', // 品名欄。YANGMING/INTERASIA大阪フォームで使用。通常はWASTE PAPER(古紙)だがUSED CLOTHING(古着)等に編集可
         vanningPlace: vanningPlace // バン詰め場所欄。TOKYO YANGMING/TOKYO KMTCフォームで使用、編集可。COMPASSの営業所住所があれば市区まで自動反映
@@ -2570,13 +2629,13 @@ async function searchBkg(){
             </select>
           </label>
         </div>
-        ${matchedPort === 'TOKYO' && matchedKey === 'YANGMING' ? `
+        ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'HAPAG') ? `
         <div class="edit-grid" style="margin-top:10px;">
-          <label>陸揚港（T/S）
-            <input type="text" id="editDischargePort" value="KAOHSIUNG" oninput="updateBkgField('dischargePort', this.value)">
+          <label>${matchedKey === 'HAPAG' ? '荷揚げ港（T/Sの場合は積替港）' : '陸揚港（T/S）'}
+            <input type="text" id="editDischargePort" value="${escapeXmlText(lastBkgContext.dischargePort)}" oninput="updateBkgField('dischargePort', this.value)">
           </label>
         </div>` : ''}
-        ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'KMTC') ? `
+        ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'KMTC' || matchedKey === 'HAPAG') ? `
         <div class="edit-grid" style="margin-top:10px;">
           <label>バン詰め場所
             <input type="text" id="editVanningPlace" list="vanningPlaceOptions" value="${vanningPlace}"
@@ -2597,10 +2656,12 @@ async function searchBkg(){
           const isYangmingTokyo = matchedPort === 'TOKYO' && matchedKey === 'YANGMING';
           const isKmtcTokyo     = matchedPort === 'TOKYO' && matchedKey === 'KMTC';
           const isCncKobeGroup  = matchedPort === 'KOBE' && (matchedKey === 'CNC' || matchedKey === 'HEUNG-A' || matchedKey === 'COSCO');
-          if(!isYangmingTokyo && !isKmtcTokyo && !isCncKobeGroup && !isTatsumiOsaka) return '';
+          const isHapagTokyo    = matchedPort === 'TOKYO' && matchedKey === 'HAPAG';
+          if(!isYangmingTokyo && !isKmtcTokyo && !isCncKobeGroup && !isTatsumiOsaka && !isHapagTokyo) return '';
           const note = isYangmingTokyo ? 'フォーム右側余白に印字されます。最大6行、改行で行分け'
             : isKmtcTokyo ? 'フォーム右列の空白欄（CK LINEの下）に印字されます。最大8行、改行で行分け'
             : isCncKobeGroup ? '「その他指定事項（危険品、オーバーディメンション等）」欄に印字されます。最大2行、改行で行分け'
+            : isHapagTokyo ? 'Excelの「リマーク」欄に入力されます。1行（改行はスペースでつなぎます）'
             : '「要望事項」欄に印字されます。1行のみ';
           const rows = (isYangmingTokyo || isKmtcTokyo) ? 3 : isCncKobeGroup ? 2 : 1;
           return `<label style="display:block;margin-top:10px;">メモ（${note}）
