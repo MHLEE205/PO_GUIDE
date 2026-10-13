@@ -654,7 +654,7 @@
       </div>
     </div>
 
-    <div class="card" id="card-HAPAG-TOKYO" data-port="TOKYO" data-carrier="hapag-lloyd hapag lloyd hld" data-carrier-key="HAPAG">
+    <div class="card" id="card-HAPAG-TOKYO" data-port="TOKYO" data-carrier="hapag-lloyd hapag lloyd hld" data-carrier-key="HAPAG-LLOYD">
       <div class="card-header">
         <div class="carrier-icon" style="background:#3a2a14;color:#f0a35b;">HL</div>
         <div><div class="carrier-name" style="font-size:15.4px;">HAPAG-LLOYD</div><div class="carrier-sub">東京港</div></div>
@@ -1492,7 +1492,7 @@ async function parseYangmingTerminalTable(zip){
   if(ssFile){
     const xml = await ssFile.async('string');
     for(const m of xml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g))
-      ss.push([...m[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
+      ss.push([...m[1].replace(/<rPh[\s\S]*?<\/rPh>/g,'').matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
   }
   const shXml = await zip.file('xl/worksheets/sheet2.xml').async('string');
   const table = {};
@@ -1640,7 +1640,7 @@ const XLSX_FILLERS = {
       const terminal = table[(ctx.vslName || '').trim().toUpperCase()] || { out:'', in:'' };
       return { bytes: await generateYangmingRecordPdf(ctx, terminal), filename: `PO(${ctx.bkgNo}).pdf`, mimeType: 'application/pdf' };
     } },
-  'TOKYO_HAPAG':     { filler: fillHapagTokyoXlsx,     defKey: 'TOKYO_HAPAG',     mailTo: 'nittsu-tyooffdock-hldpick@nipponexpress.com',
+  'TOKYO_HAPAG-LLOYD':{ filler: fillHapagTokyoXlsx,     defKey: 'TOKYO_HAPAGLLOYD',    mailTo: 'nittsu-tyooffdock-hldpick@nipponexpress.com',
     greeting: ['日本通運（株）京浜港ターミナル支店 東京事業所 東京港運チーム', 'ご担当者様'],
     subject: ctx => `[HLD ピックアップオーダー BKG NO.${ctx.bkgNo}] ${ctx.vslName || ''} ${ctx.voyNo || ''} ${mdDow(ctx.pickupDate)}~ PICK UP 希望`.replace(/\s+/g,' ') },
 };
@@ -1655,17 +1655,20 @@ async function parseXlsxToRows(bytes){
   const ssFile = zip.file('xl/sharedStrings.xml');
   if(ssFile){
     const xml = await ssFile.async('string');
+    // <rPh>はExcelが自動付与する非表示のふりがな（例：日本通運→ニホンツウウン）。表示文字列には含めない
     for(const m of xml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g))
-      ss.push([...m[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
+      ss.push([...m[1].replace(/<rPh[\s\S]*?<\/rPh>/g,'').matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
   }
   const shXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
   const rows = [];
   for(const rM of shXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)){
     const cells = [];
-    for(const cM of rM[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)){
+    // 空セル(<c .../>)を先に判定する（そうしないと次のセルの値まで巻き込み、列がずれて読まれるため）
+    for(const cM of rM[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){
       const idx = xlsxColIdx(cM[1]);
-      const vM  = cM[3].match(/<v>([^<]*)<\/v>/);
-      const isM = cM[3].match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
+      const body = cM[3] || '';
+      const vM  = body.match(/<v>([^<]*)<\/v>/);
+      const isM = body.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
       const val = vM ? (cM[2].includes('t="s"') ? (ss[+vM[1]]||'') : vM[1]) : (isM ? isM[1] : '');
       while(cells.length<=idx) cells.push('');
       cells[idx] = val;
@@ -1900,8 +1903,9 @@ function xlsxPutCell(xml, addr, buildCell){
 function findPoContactRowNum(xml, ss, wantKey){
   for(const rM of xml.matchAll(/<row[^>]*\br="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)){
     const cells = {};
-    for(const cM of rM[2].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)){
-      const vM = cM[3].match(/<v>([^<]*)<\/v>/) || cM[3].match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
+    for(const cM of rM[2].matchAll(/<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){
+      const body = cM[3] || '';
+      const vM = body.match(/<v>([^<]*)<\/v>/) || body.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
       if(!vM) continue;
       cells[cM[1]] = cM[2].includes('t="s"') ? (ss[+vM[1]]||'') : vM[1];
     }
@@ -1910,6 +1914,27 @@ function findPoContactRowNum(xml, ss, wantKey){
     if(key === wantKey) return rM[1];
   }
   return null;
+}
+
+// PO EXCEL.xlsxのsheet1.xmlの最終行の下に、A:PORT B:船社 を入れた新しい行を追加する
+// （書式は最終行のA〜F列のスタイルを引き継ぐ。C〜F列は呼び出し側でxlsxSetOrAddCellにより書き込む）
+function appendPoContactRow(xml, port, carrier){
+  const rows = [...xml.matchAll(/<row[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>|<row[^>]*\br="(\d+)"[^>]*\/>/g)];
+  const lastRow = rows.length ? rows[rows.length-1] : null;
+  const lastNum = lastRow ? Number(lastRow[1] || lastRow[2]) : 1;
+  const rowNum = String(lastNum + 1);
+  const styleOf = col => {
+    const m = lastRow && lastRow[0].match(new RegExp(`<c r="${col}${lastNum}"[^>]*\\bs="(\\d+)"`));
+    return m ? ` s="${m[1]}"` : '';
+  };
+  const strCell = (col, v) => `<c r="${col}${rowNum}"${styleOf(col)} t="inlineStr"><is><t xml:space="preserve">${escapeXmlText(v)}</t></is></c>`;
+  const emptyCell = col => `<c r="${col}${rowNum}"${styleOf(col)}/>`;
+  const rowXml = `<row r="${rowNum}" spans="1:6">${strCell('A', port)}${strCell('B', carrier)}${['C','D','E','F'].map(emptyCell).join('')}</row>`;
+  xml = xml.includes('</sheetData>') ? xml.replace('</sheetData>', rowXml + '</sheetData>') : xml.replace('<sheetData/>', `<sheetData>${rowXml}</sheetData>`);
+  // 使用範囲(dimension)も新しい最終行まで広げる
+  xml = xml.replace(/<dimension ref="([A-Z]+\d+):([A-Z]+)(\d+)"\/>/, (all, start, col, end) =>
+    Number(end) < Number(rowNum) ? `<dimension ref="${start}:${col}${rowNum}"/>` : all);
+  return { xml, rowNum };
 }
 
 // Graph APIでOneDrive上のファイル内容を丸ごと上書き保存する
@@ -1935,13 +1960,16 @@ async function savePoContact(port, carrierKey, { method, to, to2, name }){
   if(ssFile){
     const ssXml = await ssFile.async('string');
     for(const m of ssXml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g))
-      ss.push([...m[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
+      ss.push([...m[1].replace(/<rPh[\s\S]*?<\/rPh>/g,'').matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join(''));
   }
   const sheetPath = 'xl/worksheets/sheet1.xml';
   let xml = await zip.file(sheetPath).async('string');
   const key = `${port.toUpperCase()}_${carrierKey.toUpperCase().replace(/[\s\-]/g,'')}`;
-  const rowNum = findPoContactRowNum(xml, ss, key);
-  if(!rowNum) throw new Error('該当する船社の行がPO EXCEL.xlsx内に見つかりませんでした');
+  let rowNum = findPoContactRowNum(xml, ss, key);
+  if(!rowNum){
+    // 新しく追加した船社（PO EXCEL.xlsxにまだ行が無い）の場合は、最終行の下にPORT・船社名入りの行を追加する
+    ({ xml, rowNum } = appendPoContactRow(xml, port.toUpperCase(), carrierKey.toUpperCase()));
+  }
   xml = xlsxSetOrAddCell(xml, `C${rowNum}`, method);
   xml = xlsxSetOrAddCell(xml, `D${rowNum}`, to);
   xml = xlsxSetOrAddCell(xml, `E${rowNum}`, to2);
@@ -2594,7 +2622,7 @@ async function searchBkg(){
         carrierKey:   matchedKey,
         memo:         isTatsumiOsaka ? '恐れ入りますが、受領後ご返信をお願いいたします。' : '', // 辰巳商会フォームの「要望事項」欄デフォルト文言
         // 陸揚港（T/S）欄。TOKYO YANGMINGフォームは通常KAOHSIUNG T/S固定、TOKYO HAPAGフォーム（荷揚げ港）は仕向地と同じ値が初期値。いずれも編集可
-        dischargePort: matchedKey === 'HAPAG' ? (podName === '(未取得)' ? '' : podName) : 'KAOHSIUNG',
+        dischargePort: matchedKey === 'HAPAG-LLOYD' ? (podName === '(未取得)' ? '' : podName) : 'KAOHSIUNG',
         staffName:    getStaffName(), // 担当者名欄。ログイン中のCOMPASSアカウント名をデフォルトにし、編集可能
         itemName:     'WASTE PAPER(古紙)', // 品名欄。YANGMING/INTERASIA大阪フォームで使用。通常はWASTE PAPER(古紙)だがUSED CLOTHING(古着)等に編集可
         vanningPlace: vanningPlace // バン詰め場所欄。TOKYO YANGMING/TOKYO KMTCフォームで使用、編集可。COMPASSの営業所住所があれば市区まで自動反映
@@ -2629,13 +2657,13 @@ async function searchBkg(){
             </select>
           </label>
         </div>
-        ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'HAPAG') ? `
+        ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'HAPAG-LLOYD') ? `
         <div class="edit-grid" style="margin-top:10px;">
-          <label>${matchedKey === 'HAPAG' ? '荷揚げ港（T/Sの場合は積替港）' : '陸揚港（T/S）'}
+          <label>${matchedKey === 'HAPAG-LLOYD' ? '荷揚げ港（T/Sの場合は積替港）' : '陸揚港（T/S）'}
             <input type="text" id="editDischargePort" value="${escapeXmlText(lastBkgContext.dischargePort)}" oninput="updateBkgField('dischargePort', this.value)">
           </label>
         </div>` : ''}
-        ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'KMTC' || matchedKey === 'HAPAG') ? `
+        ${matchedPort === 'TOKYO' && (matchedKey === 'YANGMING' || matchedKey === 'KMTC' || matchedKey === 'HAPAG-LLOYD') ? `
         <div class="edit-grid" style="margin-top:10px;">
           <label>バン詰め場所
             <input type="text" id="editVanningPlace" list="vanningPlaceOptions" value="${vanningPlace}"
@@ -2656,7 +2684,7 @@ async function searchBkg(){
           const isYangmingTokyo = matchedPort === 'TOKYO' && matchedKey === 'YANGMING';
           const isKmtcTokyo     = matchedPort === 'TOKYO' && matchedKey === 'KMTC';
           const isCncKobeGroup  = matchedPort === 'KOBE' && (matchedKey === 'CNC' || matchedKey === 'HEUNG-A' || matchedKey === 'COSCO');
-          const isHapagTokyo    = matchedPort === 'TOKYO' && matchedKey === 'HAPAG';
+          const isHapagTokyo    = matchedPort === 'TOKYO' && matchedKey === 'HAPAG-LLOYD';
           if(!isYangmingTokyo && !isKmtcTokyo && !isCncKobeGroup && !isTatsumiOsaka && !isHapagTokyo) return '';
           const note = isYangmingTokyo ? 'フォーム右側余白に印字されます。最大6行、改行で行分け'
             : isKmtcTokyo ? 'フォーム右列の空白欄（CK LINEの下）に印字されます。最大8行、改行で行分け'
