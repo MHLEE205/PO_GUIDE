@@ -144,6 +144,18 @@
   .method-badge{margin-left:auto;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.5px;flex-shrink:0;}
   .method-fax{background:#2a1a4a;border:1px solid var(--fax-border);color:#b08af0;}
   .method-mail{background:#0d2318;border:1px solid var(--mail-border);color:#5de4a8;}
+  /* WEB申請（既存カードのセレクタに掛からないよう専用クラス） */
+  .method-web{background:#0d1f33;border:1px solid #2563eb;color:#7ab8ff;}
+  .btn-web{background:#0d1f33;border:1px solid #2563eb;color:#7ab8ff;}
+  .web-port-tab{padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
+  .web-port-tab:hover{border-color:var(--accent);color:var(--accent);}
+  .web-port-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .web-apply-box{background:var(--surface2);border:1px solid #2563eb;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--text2);}
+  .web-apply-box .wab-title{font-size:11px;font-weight:700;letter-spacing:1px;color:#7ab8ff;margin-bottom:8px;}
+  .web-apply-box .wab-item{padding:8px 0;border-top:1px solid var(--border);}
+  .web-apply-box .wab-item:first-of-type{border-top:none;padding-top:0;}
+  .web-apply-box .wab-name{font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px;}
+  .web-apply-box a{color:var(--accent);}
   .card-body{padding:13px 15px;}
   .card-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;font-size:12px;}
   .card-row:last-child{margin-bottom:0;}
@@ -675,6 +687,27 @@
 
   </div><!-- /cards-grid -->
 
+  <!-- ── WEB申請（FAXMAIL以外のPO申請.xlsx を読み込んで表示。上の船社カード・P/O自動作成とは独立） ── -->
+  <div class="section-label">WEB APPLICATION</div>
+  <div class="section-title">WEB申請</div>
+  <div class="section-desc">船社・ターミナル指定のサイトで申請する船社の案内です。P/O自動作成の対象外です。<span id="webExcelLink"></span></div>
+
+  <div class="filter-row">
+    <div class="port-tabs">
+      <button class="web-port-tab active" onclick="filterWebPort('ALL',this)">すべて</button>
+      <button class="web-port-tab" onclick="filterWebPort('TOKYO',this)">東京</button>
+      <button class="web-port-tab" onclick="filterWebPort('YOKOHAMA',this)">横浜</button>
+      <button class="web-port-tab" onclick="filterWebPort('OSAKA',this)">大阪</button>
+      <button class="web-port-tab" onclick="filterWebPort('KOBE',this)">神戸</button>
+    </div>
+    <input class="search-input" type="text" id="webSearchInput" placeholder="船社名で検索…" oninput="applyWebFilters()">
+  </div>
+
+  <div class="cards-grid" id="webCardsGrid" style="margin-bottom:16px;">
+    <div class="section-desc" id="webApplyStatus">ログインすると表示されます。</div>
+  </div>
+  <div id="webYardInfo" style="margin-bottom:48px;"></div>
+
   <!-- ── Notes ── -->
   <div class="section-label">NOTES</div>
   <div class="section-title">補足・注意事項</div>
@@ -795,6 +828,10 @@ function startTool(){
   document.getElementById('loginHint').classList.add('hidden');
   setMiniFlow(2);
   loadPoContacts().then(contacts=>refreshCardContacts(contacts)).catch(()=>{});
+  loadWebApply().then(renderWebApply).catch(e=>{
+    const s = document.getElementById('webApplyStatus');
+    if(s) s.textContent = 'WEB申請の情報を読み込めませんでした：' + e.message;
+  });
 }
 LEENAI.init({
   sys:         'B-03G',
@@ -2703,7 +2740,9 @@ async function searchBkg(){
       <div id="autoFetchResult" style="margin-top:10px;"></div>`;
       setMiniFlow(3);
     } else {
-      html += `<div style="color:var(--warn);font-size:12px;margin-top:4px;">⚠️ ${carrierName} / ${polName} のカードがページ内に見つかりませんでした。PO EXCEL.xlsxを確認してください。</div>`;
+      // P/Oカードが無い場合のみ、WEB申請に該当があれば案内を出す（該当なしは従来どおりの警告）
+      html += webApplyBoxHtml(carrierName, polName) ||
+        `<div style="color:var(--warn);font-size:12px;margin-top:4px;">⚠️ ${carrierName} / ${polName} のカードがページ内に見つかりませんでした。PO EXCEL.xlsxを確認してください。</div>`;
     }
 
     html += '</div>';
@@ -2773,6 +2812,9 @@ function portFromPol(polName){
   if(p.includes('OSAKA') || p.includes('大阪')) return 'OSAKA';
   if(p.includes('KOBE')  || p.includes('神戸')) return 'KOBE';
   if(p.includes('TOKYO') || p.includes('東京')) return 'TOKYO';
+  // 横浜：未対応の港として扱うと港を問わず他港のカードにマッチしてしまうため、港として判定する
+  // （横浜のメール/FAXカードを追加する場合は data-port="YOKOHAMA" を設定する）
+  if(p.includes('YOKOHAMA') || p.includes('横浜')) return 'YOKOHAMA';
   return null;
 }
 
@@ -2897,6 +2939,250 @@ function applyFilters(){
     const searchOk = !q || card.dataset.carrier.toLowerCase().includes(q);
     card.classList.toggle('hidden', !(portOk && searchOk));
   });
+}
+
+// ════════════════════════════════════════════
+// WEB申請（FAXMAIL以外のPO申請.xlsx）
+// 上の船社カード（#cardsGrid）・P/O自動作成とは独立した追加情報。
+// 既存処理のセレクタ（.port-tab / #cardsGrid .card / .card[data-carrier-key]）に掛からないよう、専用のクラス・ID・data属性を使う
+// ════════════════════════════════════════════
+const WEB_APPLY_EXCEL_URL = 'https://leenear.sharepoint.com/:x:/s/leenearsite1/IQANO-FY5mFlRoyAuXDVneB5AWCHMrX0bBd7b3TqmyLHPX0?e=UzC7bc'; // FAXMAIL以外のPO申請.xlsx のSharePoint共有リンク
+const WEB_PORT_LABEL = { TOKYO:'東京港', YOKOHAMA:'横浜港', OSAKA:'大阪港', KOBE:'神戸港' };
+// COMPASSの船社名がExcelの表記と大きく異なる場合の別名（スペース・ハイフンの有無は自動で吸収する）
+const WEB_CARRIER_ALIASES = { 'ONE':['OCEAN NETWORK EXPRESS'], 'CNC':['CMA CGM'] };
+let _webApply = null; // { rows:[...], yard:[...] }
+let _webPort  = 'ALL';
+
+function decodeXmlText(s){
+  return String(s||'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'")
+    .replace(/&#x([0-9a-f]+);/gi,(m,h)=>String.fromCodePoint(parseInt(h,16))).replace(/&#(\d+);/g,(m,d)=>String.fromCodePoint(+d))
+    .replace(/&amp;/g,'&');
+}
+// 前後の空白（タブ・全角スペース含む）を除去
+function webTrim(s){ return String(s||'').replace(/^[\s　]+|[\s　]+$/g,''); }
+
+// シート名 → シートXMLのパス
+async function xlsxSheetPath(zip, sheetName){
+  const wb   = await zip.file('xl/workbook.xml').async('string');
+  const rels = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+  const tag  = [...wb.matchAll(/<sheet\b[^>]*>/g)].map(m=>m[0])
+    .find(t => decodeXmlText((t.match(/\bname="([^"]*)"/)||[])[1]) === sheetName);
+  if(!tag) return null;
+  const rid = (tag.match(/r:id="([^"]+)"/)||[])[1];
+  const rel = [...rels.matchAll(/<Relationship\b[^>]*>/g)].map(m=>m[0]).find(t => t.includes(`Id="${rid}"`));
+  const target = rel && (rel.match(/Target="([^"]+)"/)||[])[1];
+  if(!target) return null;
+  return target.startsWith('/') ? target.slice(1) : 'xl/' + target;
+}
+
+// シートを {行番号: {列: {text, link}}} で読む。セルのハイパーリンク先（表示文字列と異なる場合がある）も取得する
+async function parseXlsxSheetWithLinks(zip, sheetPath){
+  const ss = [];
+  const ssFile = zip.file('xl/sharedStrings.xml');
+  if(ssFile){
+    const xml = await ssFile.async('string');
+    for(const m of xml.matchAll(/<si[^>]*>([\s\S]*?)<\/si>/g))
+      ss.push(decodeXmlText([...m[1].replace(/<rPh[\s\S]*?<\/rPh>/g,'').matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join('')));
+  }
+  const xml = await zip.file(sheetPath).async('string');
+  const relTargets = {};
+  const relsFile = zip.file(sheetPath.replace(/([^/]+)$/,'_rels/$1.rels'));
+  if(relsFile){
+    for(const m of (await relsFile.async('string')).matchAll(/<Relationship\b[^>]*>/g)){
+      const id = (m[0].match(/\bId="([^"]+)"/)||[])[1];
+      const tg = (m[0].match(/Target="([^"]*)"/)||[])[1];
+      if(id) relTargets[id] = decodeXmlText(tg);
+    }
+  }
+  const links = {};
+  for(const m of xml.matchAll(/<hyperlink\b[^>]*>/g)){
+    const ref = ((m[0].match(/\bref="([^"]+)"/)||[])[1]||'').split(':')[0];
+    const rid = (m[0].match(/r:id="([^"]+)"/)||[])[1];
+    if(ref && rid && relTargets[rid]) links[ref] = relTargets[rid];
+  }
+  const rows = {};
+  for(const cM of xml.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){
+    const [, col, rowNo, attrs, body=''] = cM;
+    const vM  = body.match(/<v>([^<]*)<\/v>/);
+    const isM = body.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
+    const text = vM ? (attrs.includes('t="s"') ? (ss[+vM[1]]||'') : decodeXmlText(vM[1])) : (isM ? decodeXmlText(isM[1]) : '');
+    (rows[rowNo] = rows[rowNo] || {})[col] = { text, link: links[col+rowNo] || '' };
+  }
+  return rows;
+}
+
+// FAXMAIL以外のPO申請.xlsx を読み込む
+// URLシート列構成: A:港 B:船会社 C:代理店 D:連絡先 E:申請方法 F:申請URL G:申請完了の確認方法 H:その他1 I:その他２
+// YARD INFOシート列構成: A:港 B:その他CY連絡先 C:部署 D:連絡先
+async function loadWebApply(){
+  if(_webApply) return _webApply;
+  if(!WEB_APPLY_EXCEL_URL) throw new Error('FAXMAIL以外のPO申請.xlsx の共有リンクが未設定です');
+  const item  = await graphGet(`shares/${encodeSharingUrl(WEB_APPLY_EXCEL_URL)}/driveItem`);
+  const bytes = await downloadFileBytes(item.parentReference.driveId, item.id);
+  const zip   = await JSZip.loadAsync(bytes);
+  const cell  = (r, c) => webTrim(r?.[c]?.text);
+  const result = { rows:[], yard:[] };
+
+  const urlPath = await xlsxSheetPath(zip, 'URL');
+  if(urlPath){
+    const sheet = await parseXlsxSheetWithLinks(zip, urlPath);
+    Object.keys(sheet).map(Number).sort((a,b)=>a-b).forEach(n=>{
+      if(n === 1) return; // 見出し行
+      const r = sheet[n];
+      const port = cell(r,'A').toUpperCase(), carrier = cell(r,'B');
+      if(!port || !carrier) return;
+      result.rows.push({
+        row: n, port, carrier,
+        agent: cell(r,'C'), contact: cell(r,'D'), method: cell(r,'E').toUpperCase(),
+        url:   webLinkOf(r?.F?.text, r?.F?.link),
+        checkText: cell(r,'G'), checkUrl: webLinkOf(r?.G?.text, r?.G?.link),
+        note1: cell(r,'H'), note2: cell(r,'I'),
+      });
+    });
+  }
+  const yardPath = await xlsxSheetPath(zip, 'YARD INFO');
+  if(yardPath){
+    const sheet = await parseXlsxSheetWithLinks(zip, yardPath);
+    Object.keys(sheet).map(Number).sort((a,b)=>a-b).forEach(n=>{
+      if(n === 1) return;
+      const r = sheet[n];
+      if(!cell(r,'B')) return;
+      result.yard.push({ port: cell(r,'A').toUpperCase(), name: cell(r,'B'), dept: cell(r,'C'), contact: cell(r,'D') });
+    });
+  }
+  _webApply = result;
+  return result;
+}
+
+// セルの表示文字列・ハイパーリンクから開くURLを決める（ハイパーリンク先を優先。mailto/telは対象外）
+function webLinkOf(text, link){
+  const l = webTrim(link);
+  if(/^https?:\/\//i.test(l)) return l;
+  const m = String(text||'').match(/https?:\/\/[^\s　]+/i);
+  if(m) return m[0];
+  const t = webTrim(text);
+  if(/^[\w-]+(\.[\w-]+)+(\/[^\s　]*)?$/.test(t)) return 'https://' + t; // 例: tokyo-oi5.com
+  return '';
+}
+
+// 船社名の照合：スペース・ハイフンの有無を問わず、単語の切れ目で一致するかを見る
+// （WAN HAI = WANHAI = WAN HAI LINES。ただし「ONE」が「PHONE」等の語の途中に一致することはない）
+function webCompact(s){ return String(s||'').toLowerCase().replace(/[\s　\-_.・]+/g,''); }
+function webNameInText(name, text){
+  const key = webCompact(name);
+  if(!key) return false;
+  const w = String(text||'').toLowerCase().split(/[\s　\-_.・]+/).filter(Boolean);
+  for(let i=0;i<w.length;i++){
+    let acc = '';
+    for(let j=i;j<w.length && acc.length<key.length;j++){ acc += w[j]; if(acc === key) return true; }
+  }
+  return false;
+}
+function webCarrierMatches(excelName, text){
+  return [excelName, ...(WEB_CARRIER_ALIASES[String(excelName).toUpperCase()]||[])].some(n => webNameInText(n, text));
+}
+
+// 表示対象：申請方法がWEBの行のみ（FAX/メールはPO EXCEL.xlsxと上の船社カードで扱う）
+function webDisplayRows(){
+  return (_webApply?.rows||[]).filter(r => r.method === 'WEB');
+}
+
+function webMethodBadge(method){
+  if(method === 'WEB')  return '<span class="method-badge method-web">🌐 WEB</span>';
+  if(method === 'FAX')  return '<span class="method-badge method-fax">📠 FAX</span>';
+  if(method === 'MAIL') return '<span class="method-badge method-mail">📧 メール</span>';
+  return '';
+}
+// 連絡先セル（複数行可）：メールアドレスはmailtoリンク、それ以外はそのまま改行表示
+function webContactHtml(s){
+  return String(s||'').split(/\r?\n/).map(webTrim).filter(Boolean).map(line =>
+    /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(line) ? `<a href="mailto:${escapeXmlText(line)}">${escapeXmlText(line)}</a>` : escapeXmlText(line)
+  ).join('<br>');
+}
+function webTextHtml(s){ return escapeXmlText(s).replace(/\r?\n/g,'<br>'); }
+// 確認方法セル：URLを除いた残りの説明文
+function webCheckNote(r){ return webTrim(String(r.checkText||'').replace(/https?:\/\/[^\s　]+/gi,'')); }
+
+function webCardHtml(r){
+  const id = `webcard-${r.row}`;
+  const rowsHtml = [
+    r.agent   ? ['代理店', webTextHtml(r.agent)] : null,
+    r.contact ? ['連絡先', webContactHtml(r.contact)] : null,
+    r.url     ? ['申請URL', `<a href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">${escapeXmlText(r.url)}</a>`] : null,
+    (r.checkUrl || webCheckNote(r)) ? ['確認方法', [
+      r.checkUrl ? `<a href="${escapeXmlText(r.checkUrl)}" target="_blank" rel="noopener">${escapeXmlText(r.checkUrl)}</a>` : '',
+      webCheckNote(r) ? webTextHtml(webCheckNote(r)) : ''].filter(Boolean).join('<br>')] : null,
+    r.note1   ? ['特記', webTextHtml(r.note1)] : null,
+    r.note2   ? ['特記2', webTextHtml(r.note2)] : null,
+  ].filter(Boolean).map(([k,v]) => `<div class="card-row"><div class="card-key">${k}</div><div class="card-val">${v}</div></div>`).join('');
+  const footer = [
+    r.url      ? `<a class="btn btn-web" href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">🌐 申請サイトを開く</a>` : '',
+    r.checkUrl ? `<a class="btn btn-secondary" href="${escapeXmlText(r.checkUrl)}" target="_blank" rel="noopener">✅ 確認サイト</a>` : '',
+  ].filter(Boolean).join('');
+  return `<div class="card web-card" id="${id}" data-web-port="${escapeXmlText(r.port)}" data-web-carrier="${escapeXmlText(r.carrier)}">
+    <div class="card-header">
+      <div class="carrier-icon" style="background:#0d1f33;color:#7ab8ff;">${escapeXmlText(r.carrier.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase())}</div>
+      <div><div class="carrier-name">${escapeXmlText(r.carrier)}</div><div class="carrier-sub">${escapeXmlText(WEB_PORT_LABEL[r.port] || r.port)}</div></div>
+      ${webMethodBadge(r.method)}
+    </div>
+    <div class="card-body">${rowsHtml}</div>
+    ${footer ? `<div class="card-footer">${footer}</div>` : ''}
+  </div>`;
+}
+
+function renderWebApply(){
+  const grid = document.getElementById('webCardsGrid');
+  if(!grid) return;
+  if(WEB_APPLY_EXCEL_URL){
+    document.getElementById('webExcelLink').innerHTML = ` <a href="${escapeXmlText(WEB_APPLY_EXCEL_URL)}" target="_blank" rel="noopener" style="color:var(--accent);">📊 FAXMAIL以外のPO申請.xlsx</a>`;
+  }
+  const rows = webDisplayRows();
+  grid.innerHTML = rows.length ? rows.map(webCardHtml).join('')
+    : '<div class="section-desc">表示できる申請先がありません。</div>';
+  const yard = _webApply?.yard || [];
+  document.getElementById('webYardInfo').innerHTML = yard.length ? `
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">その他CY連絡先</div>
+    <table class="ref-table">
+      <tr><th>港</th><th>CY</th><th>部署</th><th>連絡先</th></tr>
+      ${yard.map(y => `<tr><td>${escapeXmlText(WEB_PORT_LABEL[y.port] || y.port)}</td><td>${webTextHtml(y.name)}</td><td>${webTextHtml(y.dept)}</td><td>${webContactHtml(y.contact)}</td></tr>`).join('')}
+    </table>` : '';
+  applyWebFilters();
+}
+
+function filterWebPort(port, btn){
+  _webPort = port;
+  document.querySelectorAll('.web-port-tab').forEach(t=>t.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  applyWebFilters();
+}
+function applyWebFilters(){
+  const q = webCompact(document.getElementById('webSearchInput')?.value);
+  document.querySelectorAll('#webCardsGrid .web-card').forEach(c=>{
+    const portOk   = _webPort === 'ALL' || c.dataset.webPort === _webPort;
+    const searchOk = !q || webCompact(c.dataset.webCarrier).includes(q);
+    c.classList.toggle('hidden', !(portOk && searchOk));
+  });
+}
+
+// BKG検索でP/Oカードが無かった場合の案内（該当なしは空文字を返し、呼び出し側で従来の警告を出す）
+function webApplyBoxHtml(carrierName, polName){
+  if(!_webApply) return '';
+  const port = portFromPol(polName);
+  const hits = webDisplayRows().filter(r => (!port || r.port === port) && webCarrierMatches(r.carrier, carrierName));
+  if(!hits.length) return '';
+  return `<div class="web-apply-box">
+    <div class="wab-title">🌐 WEB申請（P/O自動作成の対象外）</div>
+    ${hits.map(r => `<div class="wab-item">
+      <div class="wab-name">${escapeXmlText(r.carrier)} / ${escapeXmlText(WEB_PORT_LABEL[r.port] || r.port)} ${webMethodBadge(r.method)}</div>
+      ${r.agent   ? `<div>代理店：${webTextHtml(r.agent)}</div>` : ''}
+      ${r.contact ? `<div>連絡先：${webContactHtml(r.contact)}</div>` : ''}
+      ${r.url     ? `<div style="margin-top:6px;"><a class="btn btn-web" href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">🌐 申請サイトを開く</a>
+        ${r.checkUrl ? `<a class="btn btn-secondary" href="${escapeXmlText(r.checkUrl)}" target="_blank" rel="noopener">✅ 確認サイト</a>` : ''}</div>` : ''}
+      ${webCheckNote(r) ? `<div style="margin-top:4px;">確認方法：${webTextHtml(webCheckNote(r))}</div>` : ''}
+      ${r.note1 ? `<div>特記：${webTextHtml(r.note1)}</div>` : ''}
+      ${r.note2 ? `<div>特記2：${webTextHtml(r.note2)}</div>` : ''}
+    </div>`).join('')}
+  </div>`;
 }
 
 // ── Collapsible ──
