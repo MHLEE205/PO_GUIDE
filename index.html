@@ -869,7 +869,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.6',
+  version:     '1.7',
   date:        '2026-10-21',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -1749,8 +1749,9 @@ async function parseXlsxToRows(bytes){
 }
 
 // PO EXCEL.xlsx を読み込み _poContacts に格納（PORT_船社キー → {method,to,to2,cc,name}）
-// 列構成: A:PORT B:船社 C:申請方法 D:宛先1 E:宛先2 F:宛先名
+// 列構成: A:PORT B:船社 C:申請方法 D:宛先1 E:宛先2 F:宛先名 G:TEL
 // 宛先2は、メールの場合はCC、FAXの場合は2件目のFAX番号として使う
+// TELは参考表示のみ（FAX送信・メール作成・P/O自動作成には使わない）。見出し「TEL」の列、無ければG列を読む
 async function loadPoContacts(){
   if(_poContacts) return _poContacts;
   try{
@@ -1758,13 +1759,15 @@ async function loadPoContacts(){
     const item    = await graphGet(`shares/${shareId}/driveItem`);
     const bytes   = await downloadFileBytes(item.parentReference.driveId, item.id);
     const rows    = await parseXlsxToRows(bytes);
+    const telHeaderIdx = (rows[0]||[]).findIndex(h => /^(TEL|電話)/i.test((h||'').trim()));
+    const telIdx  = telHeaderIdx >= 0 ? telHeaderIdx : 6;
     _poContacts   = {};
     for(let i=1; i<rows.length; i++){
       const [port,carrier,method,to,to2,name] = rows[i];
       if(!port?.trim() || !carrier?.trim()) continue;
       const key = `${port.trim().toUpperCase()}_${carrier.trim().toUpperCase().replace(/[\s\-]/g,'')}`;
       const to2Trim = to2?.trim()||'';
-      _poContacts[key] = { method:method?.trim()||'', to:to?.trim()||'', to2:to2Trim, cc:to2Trim, name:name?.trim()||'' };
+      _poContacts[key] = { method:method?.trim()||'', to:to?.trim()||'', to2:to2Trim, cc:to2Trim, name:name?.trim()||'', tel:(rows[i][telIdx]||'').trim() };
     }
   }catch(e){
     console.warn('PO連絡先Excel読み込み失敗:', e.message);
@@ -1809,6 +1812,24 @@ function refreshCardContacts(contacts){
         newRow.innerHTML = `<div class="card-key">FAX先</div><div class="card-val">${escapeXmlText(c.name)}</div>`;
         faxNoRow.parentNode.insertBefore(newRow, faxNoRow);
       }
+    }
+
+    // TEL（参考表示のみ）：FAX No.またはメールの行の下に表示（行が無い場合は新規追加）
+    const telRow = rows.find(r => (r.querySelector('.card-key')?.textContent || '').trim() === 'TEL');
+    if(c.tel){
+      const telHtml = `<div class="card-key">TEL</div><div class="card-val">${escapeXmlText(c.tel)} <span style="font-size:10px;color:var(--text3);">（参考）</span></div>`;
+      if(telRow){
+        telRow.innerHTML = telHtml;
+      } else {
+        const anchor = faxNoRow || rows.find(r => (r.querySelector('.card-key')?.textContent || '').trim() === 'メール');
+        const newRow = document.createElement('div');
+        newRow.className = 'card-row';
+        newRow.innerHTML = telHtml;
+        if(anchor) anchor.parentNode.insertBefore(newRow, anchor.nextSibling);
+        else card.querySelector('.card-body')?.appendChild(newRow);
+      }
+    } else if(telRow){
+      telRow.remove();
     }
   });
 }
