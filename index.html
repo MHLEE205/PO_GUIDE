@@ -342,20 +342,10 @@
   <div id="detailsSection" class="collapsible">
     <div class="collapsible-header" onclick="toggleC('detailsSection')">
       <span>📋</span>
-      <span class="collapsible-title">詳細情報・船社一覧を見る（通常は不要です）</span>
+      <span class="collapsible-title">船社一覧・フォーム</span>
       <span class="collapsible-arrow">›</span>
     </div>
     <div class="collapsible-body">
-
-  <!-- ── 概要 ── -->
-  <div class="section-label">OVERVIEW</div>
-  <div class="section-title">P/O 申請とは</div>
-  <div class="section-desc">輸出ブッキング後、船社または港湾ターミナルへ空コンテナの引き取り予約を行う業務です。申請方法は船社・港によって <strong>メール</strong>・<strong>FAX</strong>・<strong>WEB</strong> の3種類あります。</div>
-
-  <div class="info-box">
-    <strong>📅 ピックアップ希望日：</strong> CY OPEN日の <strong>1営業日前</strong>（土日・祝日は自動遡及）<br>
-    <strong>🗂 フォームファイル：</strong> 社内SharePointの <code>PICK UP/</code> フォルダに格納。下のボタンでアクセス。
-  </div>
 
   <div class="od-row">
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX" target="_blank">📁 OSAKA フォルダ</a>
@@ -366,9 +356,7 @@
   </div>
 
   <!-- ── 船社一覧（FAX・メールの船社カード ＋ WEB申請カードを1つの一覧で表示） ── -->
-  <div class="section-label">CARRIER LIST</div>
-  <div class="section-title">港・船社別 申請一覧</div>
-  <div class="section-desc">FAX・メール・WEB申請の船社をまとめて表示します。BKG検索後は該当カードが自動ハイライトされます。WEB申請はP/O自動作成の対象外です。</div>
+  <div class="section-title">船社一覧</div>
 
   <div class="filter-row">
     <div class="port-tabs">
@@ -745,9 +733,7 @@
   </div><!-- /allCardsGrid -->
 
   <!-- ── Notes ── -->
-  <div class="section-label">NOTES</div>
-  <div class="section-title">補足・注意事項</div>
-  <div class="section-desc" style="margin-bottom:16px;"></div>
+  <div class="section-title" style="margin-top:28px;">注意事項</div>
   <div class="notes-grid">
     <div class="note-card">
       <h3><span>📝</span> FAX記入項目</h3>
@@ -771,9 +757,9 @@
     </div>
   </div>
 
-  <!-- ── Admin ── -->
-  <div class="section-label" style="margin-top:36px;">ADMIN</div>
-  <div class="section-title">新規船社を追加する手順</div>
+  <!-- ── Admin（非表示。管理者向け手順はHTMLに残す） ── -->
+  <div class="hidden">
+  <div class="section-title" style="margin-top:36px;">新規船社を追加する手順</div>
   <div style="margin-bottom:12px;"></div>
   <div class="collapsible" id="c1">
     <div class="collapsible-header" onclick="toggleC('c1')">
@@ -816,6 +802,7 @@
       </ul>
     </div>
   </div>
+  </div><!-- /Admin hidden -->
 
     </div><!-- /collapsible-body -->
   </div><!-- /detailsSection -->
@@ -872,8 +859,8 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.8',
-  date:        '2026-10-21',
+  version:     '1.9',
+  date:        '2026-10-22',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
   redirectUri: 'https://mhlee205.github.io/PO_GUIDE/',
