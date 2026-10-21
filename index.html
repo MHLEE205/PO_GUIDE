@@ -33,6 +33,12 @@
     --box-active-bg:    #162038;
     --cb-mail-label:    #60a5fa;
     --cb-fax-label:     #b08af0;
+    --method-fax:       #ea580c;
+    --method-mail:      #16a34a;
+    --method-web:       #2563eb;
+    --box-method-fax-bg:  #2a1608;
+    --box-method-mail-bg: #0b2416;
+    --box-method-web-bg:  #0c1a2e;
   }
   [data-theme="light"]{
     --fax-border:  #8a6fd6;
@@ -53,6 +59,9 @@
     --box-active-bg:    #dce8fb;
     --cb-mail-label:    #1a56c4;
     --cb-fax-label:     #7a3fc9;
+    --box-method-fax-bg:  #fff1e6;
+    --box-method-mail-bg: #e8f8ee;
+    --box-method-web-bg:  #e7f0fd;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-size:14px;line-height:1.6;min-height:100vh;}
@@ -132,6 +141,22 @@
 
   /* ── Cards ── */
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px;margin-bottom:48px;}
+  /* 一覧は見出しのみ表示し、クリックで詳細を開く（スクロール量を減らす）。BKG検索で一致したカードは自動で開く */
+  .cards-grid.compact{align-items:start;gap:10px;}
+  .cards-grid.compact .card-header{cursor:pointer;}
+  .cards-grid.compact .card-header::after{content:'›';color:var(--text3);font-size:16px;margin-left:4px;transition:transform .2s;}
+  .cards-grid.compact .card.open .card-header::after,
+  .cards-grid.compact .card.matched .card-header::after{transform:rotate(90deg);}
+  .cards-grid.compact .card:not(.open):not(.matched) .card-header{border-bottom:none;}
+  .cards-grid.compact .card:not(.open):not(.matched) .card-body,
+  .cards-grid.compact .card:not(.open):not(.matched) .card-footer{display:none;}
+  /* その他CY連絡先（重要情報として目立たせる） */
+  .yard-box{background:var(--box-tagwarn-bg);border:2px solid var(--warn);border-left-width:8px;border-radius:8px;padding:12px 16px;margin-bottom:16px;}
+  .yard-box .yb-title{display:inline-block;font-size:14px;font-weight:800;letter-spacing:1px;color:#fff;background:var(--warn);padding:3px 14px;border-radius:20px;margin-bottom:8px;}
+  .yard-box .yb-row{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;padding:4px 0;font-size:13px;color:var(--text2);}
+  .yard-box .yb-port{font-size:11px;font-weight:700;color:var(--warn);}
+  .yard-box .yb-name{font-weight:700;color:var(--text);}
+  .yard-box .yb-tel{font-size:17px;font-weight:800;color:var(--text);}
   .card{background:var(--surface);border:2px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .2s, box-shadow .2s;}
   .card:hover{border-color:var(--accent);}
   .card.matched{border-color:var(--accent2);box-shadow:0 0 0 4px rgba(56,201,138,.12);}
@@ -146,12 +171,12 @@
   .method-mail{background:#0d2318;border:1px solid var(--mail-border);color:#5de4a8;}
   /* WEB申請（既存カードのセレクタに掛からないよう専用クラス） */
   .method-web{background:#0d1f33;border:1px solid #2563eb;color:#7ab8ff;}
-  .btn-web{background:#0d1f33;border:1px solid #2563eb;color:#7ab8ff;}
+  .btn-web{background:var(--method-web);color:#fff;}
   .web-port-tab{padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
   .web-port-tab:hover{border-color:var(--accent);color:var(--accent);}
   .web-port-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
-  .web-apply-box{background:var(--surface2);border:1px solid #2563eb;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--text2);}
-  .web-apply-box .wab-title{font-size:11px;font-weight:700;letter-spacing:1px;color:#7ab8ff;margin-bottom:8px;}
+  .web-apply-box{background:var(--box-method-web-bg);border:2px solid var(--method-web);border-left-width:8px;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--text2);}
+  .web-apply-box .wab-title{display:inline-block;font-size:14px;font-weight:800;letter-spacing:1px;color:#fff;background:var(--method-web);padding:3px 14px;border-radius:20px;margin-bottom:8px;}
   .web-apply-box .wab-item{padding:8px 0;border-top:1px solid var(--border);}
   .web-apply-box .wab-item:first-of-type{border-top:none;padding-top:0;}
   .web-apply-box .wab-name{font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px;}
@@ -227,11 +252,12 @@
 
   /* ── 送信先 案内ボックス ── */
   .contact-box{border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-  .contact-box.mail{background:var(--box-contact-mail-bg);border:1px solid #2563eb;}
-  .contact-box.fax{background:var(--box-contact-fax-bg);border:1px solid var(--fax-border);}
-  .contact-box .cb-label{font-size:11px;font-weight:700;letter-spacing:1px;}
-  .contact-box.mail .cb-label{color:var(--cb-mail-label);}
-  .contact-box.fax .cb-label{color:var(--cb-fax-label);}
+  /* BKG検索結果の申請方法：FAX＝オレンジ／メール＝グリーン／WEB＝ブルーの色分けで一目で区別できるようにする */
+  .contact-box.mail{background:var(--box-method-mail-bg);border:2px solid var(--method-mail);border-left-width:8px;}
+  .contact-box.fax{background:var(--box-method-fax-bg);border:2px solid var(--method-fax);border-left-width:8px;}
+  .contact-box .cb-label{display:inline-block;font-size:14px;font-weight:800;letter-spacing:1px;color:#fff;padding:3px 14px;border-radius:20px;margin-bottom:6px;}
+  .contact-box.mail .cb-label{background:var(--method-mail);}
+  .contact-box.fax .cb-label{background:var(--method-fax);}
   .contact-box .cb-val{font-size:16px;font-weight:800;color:var(--text);}
   .contact-box .cb-val a{color:inherit;text-decoration:underline;}
 
@@ -340,9 +366,10 @@
     </div>
     <input class="search-input" type="text" id="searchInput" placeholder="船社名で検索…" oninput="filterSearch()">
     <button class="btn btn-secondary" id="clearMatchBtn" onclick="clearMatch()" style="display:none;">✕ ハイライト解除</button>
+    <button class="btn btn-secondary" onclick="toggleAllCards('cardsGrid', this)">📖 すべて開く</button>
   </div>
 
-  <div class="cards-grid" id="cardsGrid">
+  <div class="cards-grid compact" id="cardsGrid">
 
     <!-- ═══ OSAKA ═══ -->
     <div class="card" id="card-YANGMING-OSAKA" data-port="OSAKA" data-carrier="yangming yang ming" data-carrier-key="YANGMING">
@@ -692,6 +719,8 @@
   <div class="section-title">WEB申請</div>
   <div class="section-desc">船社・ターミナル指定のサイトで申請する船社の案内です。P/O自動作成の対象外です。<span id="webExcelLink"></span></div>
 
+  <div id="webYardInfo"></div>
+
   <div class="filter-row">
     <div class="port-tabs">
       <button class="web-port-tab active" onclick="filterWebPort('ALL',this)">すべて</button>
@@ -701,12 +730,12 @@
       <button class="web-port-tab" onclick="filterWebPort('KOBE',this)">神戸</button>
     </div>
     <input class="search-input" type="text" id="webSearchInput" placeholder="船社名で検索…" oninput="applyWebFilters()">
+    <button class="btn btn-secondary" onclick="toggleAllCards('webCardsGrid', this)">📖 すべて開く</button>
   </div>
 
-  <div class="cards-grid" id="webCardsGrid" style="margin-bottom:16px;">
+  <div class="cards-grid compact" id="webCardsGrid">
     <div class="section-desc" id="webApplyStatus">ログインすると表示されます。</div>
   </div>
-  <div id="webYardInfo" style="margin-bottom:48px;"></div>
 
   <!-- ── Notes ── -->
   <div class="section-label">NOTES</div>
@@ -836,7 +865,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.1',
+  version:     '1.2',
   date:        '2026-10-21',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -2665,6 +2694,7 @@ async function searchBkg(){
         vanningPlace: vanningPlace // バン詰め場所欄。TOKYO YANGMING/TOKYO KMTCフォームで使用、編集可。COMPASSの営業所住所があれば市区まで自動反映
       };
       html += contactBoxHtml(firstCard);
+      html += yardBoxForPolHtml(polName);
       html += `<div class="edit-box edit-watermark">
         <div class="edit-box-title">✏️ 送信前に確認・修正（COMPASSにない情報や誤りはここで直接入力してください）</div>
         <div class="edit-grid">
@@ -2743,6 +2773,7 @@ async function searchBkg(){
       // P/Oカードが無い場合のみ、WEB申請に該当があれば案内を出す（該当なしは従来どおりの警告）
       html += webApplyBoxHtml(carrierName, polName) ||
         `<div style="color:var(--warn);font-size:12px;margin-top:4px;">⚠️ ${carrierName} / ${polName} のカードがページ内に見つかりませんでした。PO EXCEL.xlsxを確認してください。</div>`;
+      html += yardBoxForPolHtml(polName);
     }
 
     html += '</div>';
@@ -2767,19 +2798,19 @@ function contactBoxHtml(cardEl){
   });
   if(isMail && mailLink){
     return `<div class="contact-box mail">
-      <div><div class="cb-label">📧 送信方法：メール</div><div class="cb-val"><a href="${mailLink.getAttribute('href')}">${mailLink.textContent.trim()}</a></div></div>
+      <div><div class="cb-label">📧 メール申請</div><div class="cb-val"><a href="${mailLink.getAttribute('href')}">${mailLink.textContent.trim()}</a></div></div>
     </div>`;
   }
   if(faxNos.length){
     return `<div class="contact-box fax">
       <div>
-        <div class="cb-label">📠 送信方法：FAX</div>
+        <div class="cb-label">📠 FAX申請</div>
         ${faxTo ? `<div class="cb-val" style="font-size:13px;font-weight:700;margin-bottom:2px;">${faxTo}</div>` : ''}
         <div class="cb-val">${faxNos.join(' / ')}</div>
       </div>
     </div>`;
   }
-  return `<div class="contact-box fax"><div><div class="cb-label">ℹ️ 送信先</div><div class="cb-val" style="font-size:13px;">下の「詳細カードを見る」またはPO EXCEL.xlsxで確認してください</div></div></div>`;
+  return `<div class="contact-box ${isMail ? 'mail' : 'fax'}"><div><div class="cb-label">ℹ️ 送信先（${isMail ? 'メール' : 'FAX'}）</div><div class="cb-val" style="font-size:13px;">下の「詳細カードを見る」またはPO EXCEL.xlsxで確認してください</div></div></div>`;
 }
 
 // ── カードマッチング ──
@@ -3139,15 +3170,43 @@ function renderWebApply(){
   const rows = webDisplayRows();
   grid.innerHTML = rows.length ? rows.map(webCardHtml).join('')
     : '<div class="section-desc">表示できる申請先がありません。</div>';
-  const yard = _webApply?.yard || [];
-  document.getElementById('webYardInfo').innerHTML = yard.length ? `
-    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">その他CY連絡先</div>
-    <table class="ref-table">
-      <tr><th>港</th><th>CY</th><th>部署</th><th>連絡先</th></tr>
-      ${yard.map(y => `<tr><td>${escapeXmlText(WEB_PORT_LABEL[y.port] || y.port)}</td><td>${webTextHtml(y.name)}</td><td>${webTextHtml(y.dept)}</td><td>${webContactHtml(y.contact)}</td></tr>`).join('')}
-    </table>` : '';
+  document.getElementById('webYardInfo').innerHTML = yardBoxHtml(_webApply?.yard || []);
   applyWebFilters();
 }
+
+// その他CY連絡先（YARD INFOシート）の強調ボックス。該当なしは空文字
+function yardBoxHtml(yard){
+  if(!yard.length) return '';
+  return `<div class="yard-box">
+    <div class="yb-title">📞 その他CY連絡先</div>
+    ${yard.map(y => `<div class="yb-row">
+      <span class="yb-port">${escapeXmlText(WEB_PORT_LABEL[y.port] || y.port)}</span>
+      <span class="yb-name">${webTextHtml(y.name)}</span>
+      ${y.dept ? `<span>${webTextHtml(y.dept)}</span>` : ''}
+      <span class="yb-tel">${webContactHtml(y.contact)}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
+// BKG検索結果用：POLの港のその他CY連絡先のみ表示
+function yardBoxForPolHtml(polName){
+  const port = portFromPol(polName);
+  return port ? yardBoxHtml((_webApply?.yard || []).filter(y => y.port === port)) : '';
+}
+
+// 一覧カードをまとめて開く／閉じる
+function toggleAllCards(gridId, btn){
+  const cards = document.querySelectorAll(`#${gridId} .card`);
+  const open  = [...cards].some(c => !c.classList.contains('open'));
+  cards.forEach(c => c.classList.toggle('open', open));
+  if(btn) btn.textContent = open ? '📕 すべて閉じる' : '📖 すべて開く';
+}
+
+// 一覧カードの見出しクリックで詳細を開閉
+document.addEventListener('click', e => {
+  const header = e.target.closest('.cards-grid.compact .card-header');
+  if(header) header.closest('.card').classList.toggle('open');
+});
 
 function filterWebPort(port, btn){
   _webPort = port;
