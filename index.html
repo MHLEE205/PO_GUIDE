@@ -152,6 +152,7 @@
   .cards-grid.compact .card:not(.open):not(.matched) .card-body,
   .cards-grid.compact .card:not(.open):not(.matched) .card-footer{display:none;}
   /* その他CY連絡先（重要情報として目立たせる） */
+  .btn-yard{background:var(--warn);color:#fff;font-weight:700;}
   .yard-box{background:var(--box-tagwarn-bg);border:2px solid var(--warn);border-left-width:8px;border-radius:8px;padding:12px 16px;margin-bottom:16px;}
   .yard-box .yb-title{display:inline-block;font-size:14px;font-weight:800;letter-spacing:1px;color:#fff;background:var(--warn);padding:3px 14px;border-radius:20px;margin-bottom:8px;}
   .yard-box .yb-row{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;padding:4px 0;font-size:13px;color:var(--text2);}
@@ -370,7 +371,7 @@
     <input class="search-input" type="text" id="searchInput" placeholder="船社名で検索…" oninput="filterAllSearch()">
     <button class="btn btn-secondary" id="clearMatchBtn" onclick="clearMatch()" style="display:none;">✕ ハイライト解除</button>
     <button class="btn btn-secondary" onclick="toggleAllCards('allCardsGrid', this)">📖 すべて開く</button>
-    <button class="btn btn-secondary" id="yardToggleBtn" onclick="toggleYardInfo(this)">📞 その他CY連絡先</button>
+    <button class="btn btn-yard" id="yardToggleBtn" onclick="toggleYardInfo(this)">📞 その他CY連絡先</button>
   </div>
 
   <!-- その他CY連絡先（必要な時だけ開く） -->
@@ -861,7 +862,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.4',
+  version:     '1.5',
   date:        '2026-10-21',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
