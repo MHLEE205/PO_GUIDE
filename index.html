@@ -172,9 +172,9 @@
   /* WEB申請（既存カードのセレクタに掛からないよう専用クラス） */
   .method-web{background:#0d1f33;border:1px solid #2563eb;color:#7ab8ff;}
   .btn-web{background:var(--method-web);color:#fff;}
-  .web-port-tab{padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
-  .web-port-tab:hover{border-color:var(--accent);color:var(--accent);}
-  .web-port-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .web-port-tab,.web-view-tab{padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
+  .web-port-tab:hover,.web-view-tab:hover{border-color:var(--accent);color:var(--accent);}
+  .web-port-tab.active,.web-view-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
   .web-apply-box{background:var(--box-method-web-bg);border:2px solid var(--method-web);border-left-width:8px;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:12px;color:var(--text2);}
   .web-apply-box .wab-title{display:inline-block;font-size:14px;font-weight:800;letter-spacing:1px;color:#fff;background:var(--method-web);padding:3px 14px;border-radius:20px;margin-bottom:8px;}
   .web-apply-box .wab-item{padding:8px 0;border-top:1px solid var(--border);}
@@ -349,7 +349,7 @@
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgCsfpKlXgj_SIHdzW02dUwSAVgYcNl9vUyXER4M2QCZxGg?e=3IwAhX" target="_blank">📁 OSAKA フォルダ</a>
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📁 KOBE フォルダ</a>
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgB8cz52SBTWQobOuxufNfIMAU0ho7apVMwmnGzHt9eU624?e=IVVUF7" target="_blank">📁 TOKYO フォルダ</a>
-    <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQDdu5bGWXY4TKbAM39456BPAdxzQ8J4jFlgJ4f4qVGh3tQ?e=r376yy" target="_blank">📊 PO EXCEL.xlsx</a>
+    <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQDdu5bGWXY4TKbAM39456BPAdxzQ8J4jFlgJ4f4qVGh3tQ?e=r376yy" target="_blank" rel="noopener" onclick="return confirmOpenExcel('PO EXCEL.xlsx')">📊 PO EXCEL.xlsx</a>
   </div>
 
   <!-- ── 船社一覧 ── -->
@@ -717,10 +717,22 @@
   <!-- ── WEB申請（FAXMAIL以外のPO申請.xlsx を読み込んで表示。上の船社カード・P/O自動作成とは独立） ── -->
   <div class="section-label">WEB APPLICATION</div>
   <div class="section-title">WEB申請</div>
-  <div class="section-desc">船社・ターミナル指定のサイトで申請する船社の案内です。P/O自動作成の対象外です。<span id="webExcelLink"></span></div>
+  <div class="section-desc" style="margin-bottom:12px;">船社・ターミナル指定のサイトで申請する船社の案内です。P/O自動作成の対象外です。</div>
+  <div class="od-row" style="margin-bottom:16px;">
+    <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQANO-FY5mFlRoyAuXDVneB5AWCHMrX0bBd7b3TqmyLHPX0?e=UzC7bc" target="_blank" rel="noopener" onclick="return confirmOpenExcel('FAXMAIL以外のPO申請.xlsx')">📊 FAXMAIL以外のPO申請.xlsx</a>
+  </div>
 
-  <div id="webYardInfo"></div>
+  <!-- 表示切替：POL・船社情報 ／ その他CY連絡先（必要な時だけ開く） -->
+  <div class="port-tabs" style="margin-bottom:14px;">
+    <button class="web-view-tab active" onclick="switchWebView('carrier',this)">🚢 POL・船社情報</button>
+    <button class="web-view-tab" onclick="switchWebView('yard',this)">📞 その他CY連絡先</button>
+  </div>
 
+  <div id="webViewYard" class="hidden" style="margin-bottom:48px;">
+    <div id="webYardInfo"><div class="section-desc">ログインすると表示されます。</div></div>
+  </div>
+
+  <div id="webViewCarrier">
   <div class="filter-row">
     <div class="port-tabs">
       <button class="web-port-tab active" onclick="filterWebPort('ALL',this)">すべて</button>
@@ -736,6 +748,7 @@
   <div class="cards-grid compact" id="webCardsGrid">
     <div class="section-desc" id="webApplyStatus">ログインすると表示されます。</div>
   </div>
+  </div><!-- /webViewCarrier -->
 
   <!-- ── Notes ── -->
   <div class="section-label">NOTES</div>
@@ -865,7 +878,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.2',
+  version:     '1.3',
   date:        '2026-10-21',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -2694,7 +2707,6 @@ async function searchBkg(){
         vanningPlace: vanningPlace // バン詰め場所欄。TOKYO YANGMING/TOKYO KMTCフォームで使用、編集可。COMPASSの営業所住所があれば市区まで自動反映
       };
       html += contactBoxHtml(firstCard);
-      html += yardBoxForPolHtml(polName);
       html += `<div class="edit-box edit-watermark">
         <div class="edit-box-title">✏️ 送信前に確認・修正（COMPASSにない情報や誤りはここで直接入力してください）</div>
         <div class="edit-grid">
@@ -2773,7 +2785,6 @@ async function searchBkg(){
       // P/Oカードが無い場合のみ、WEB申請に該当があれば案内を出す（該当なしは従来どおりの警告）
       html += webApplyBoxHtml(carrierName, polName) ||
         `<div style="color:var(--warn);font-size:12px;margin-top:4px;">⚠️ ${carrierName} / ${polName} のカードがページ内に見つかりませんでした。PO EXCEL.xlsxを確認してください。</div>`;
-      html += yardBoxForPolHtml(polName);
     }
 
     html += '</div>';
@@ -3164,14 +3175,25 @@ function webCardHtml(r){
 function renderWebApply(){
   const grid = document.getElementById('webCardsGrid');
   if(!grid) return;
-  if(WEB_APPLY_EXCEL_URL){
-    document.getElementById('webExcelLink').innerHTML = ` <a href="${escapeXmlText(WEB_APPLY_EXCEL_URL)}" target="_blank" rel="noopener" style="color:var(--accent);">📊 FAXMAIL以外のPO申請.xlsx</a>`;
-  }
   const rows = webDisplayRows();
   grid.innerHTML = rows.length ? rows.map(webCardHtml).join('')
     : '<div class="section-desc">表示できる申請先がありません。</div>';
-  document.getElementById('webYardInfo').innerHTML = yardBoxHtml(_webApply?.yard || []);
+  document.getElementById('webYardInfo').innerHTML = yardBoxHtml(_webApply?.yard || [])
+    || '<div class="section-desc">登録されているCY連絡先はありません。</div>';
   applyWebFilters();
+}
+
+// ExcelリンクのクリックでSharePoint原本を開く前に確認（保存すると原本に即時反映されるため）
+function confirmOpenExcel(name){
+  return confirm(`${name} を直接開いて閲覧・修正しますか？\n\n※ SharePointの原本ファイルが開きます。修正内容は自動保存され、サイトにも反映されます。`);
+}
+
+// WEB申請セクションの表示切替（POL・船社情報 ／ その他CY連絡先）
+function switchWebView(view, btn){
+  document.getElementById('webViewCarrier').classList.toggle('hidden', view !== 'carrier');
+  document.getElementById('webViewYard').classList.toggle('hidden', view !== 'yard');
+  document.querySelectorAll('.web-view-tab').forEach(t=>t.classList.remove('active'));
+  if(btn) btn.classList.add('active');
 }
 
 // その他CY連絡先（YARD INFOシート）の強調ボックス。該当なしは空文字
@@ -3188,7 +3210,7 @@ function yardBoxHtml(yard){
   </div>`;
 }
 
-// BKG検索結果用：POLの港のその他CY連絡先のみ表示
+// BKG検索結果用：POLの港のその他CY連絡先のみ表示（現在はBKG検索結果には表示しない。必要時はWEB申請セクションの「その他CY連絡先」で確認）
 function yardBoxForPolHtml(polName){
   const port = portFromPol(polName);
   return port ? yardBoxHtml((_webApply?.yard || []).filter(y => y.port === port)) : '';
