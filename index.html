@@ -269,6 +269,9 @@
   .contact-box.fax .cb-label{background:var(--method-fax);}
   .contact-box .cb-val{font-size:16px;font-weight:800;color:var(--text);}
   .contact-box .cb-val a{color:inherit;text-decoration:underline;}
+  .contact-box .cb-prefix{font-size:12px;font-weight:700;color:var(--text2);margin-right:2px;}
+  .contact-box .cb-tel{font-size:12px;color:var(--text2);margin-top:4px;}
+  .contact-box .cb-tel span{font-size:10px;color:var(--text3);}
 
   /* ── 船社連絡先 編集 ── */
   .contact-edit-btn{background:none;border:1px solid var(--border);color:var(--text2);font-size:10.5px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;font-family:var(--font-main);}
@@ -869,7 +872,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.7',
+  version:     '1.8',
   date:        '2026-10-21',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -2812,16 +2815,20 @@ function contactBoxHtml(cardEl){
   const isMail = !!cardEl.querySelector('.method-badge.method-mail');
   const mailLink = cardEl.querySelector('a[href^="mailto:"]');
   let faxTo = null;
+  let tel = '';
   const faxNos = [];
   cardEl.querySelectorAll('.card-row').forEach(row=>{
     const k = row.querySelector('.card-key');
     if(!k) return;
     if(k.textContent.includes('FAX先')) faxTo = row.querySelector('.card-val').textContent.trim();
     if(k.textContent.includes('FAX No.')) faxNos.push(row.querySelector('.card-val').textContent.trim());
+    if(k.textContent.trim() === 'TEL') tel = row.querySelector('.card-val').textContent.replace('（参考）','').trim();
   });
+  // TEL（PO EXCEL.xlsxのTEL列）は参考として小さく表示
+  const telHtml = tel ? `<div class="cb-tel">TEL. ${escapeXmlText(tel)} <span>（参考）</span></div>` : '';
   if(isMail && mailLink){
     return `<div class="contact-box mail">
-      <div><div class="cb-label">📧 メール申請</div><div class="cb-val"><a href="${mailLink.getAttribute('href')}">${mailLink.textContent.trim()}</a></div></div>
+      <div><div class="cb-label">📧 メール申請</div><div class="cb-val"><a href="${mailLink.getAttribute('href')}">${mailLink.textContent.trim()}</a></div>${telHtml}</div>
     </div>`;
   }
   if(faxNos.length){
@@ -2829,7 +2836,8 @@ function contactBoxHtml(cardEl){
       <div>
         <div class="cb-label">📠 FAX申請</div>
         ${faxTo ? `<div class="cb-val" style="font-size:13px;font-weight:700;margin-bottom:2px;">${faxTo}</div>` : ''}
-        <div class="cb-val">${faxNos.join(' / ')}</div>
+        <div class="cb-val"><span class="cb-prefix">FAX.</span> ${faxNos.join(' / ')}</div>
+        ${telHtml}
       </div>
     </div>`;
   }
