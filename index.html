@@ -143,6 +143,7 @@
   .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px;margin-bottom:48px;}
   /* 一覧は見出しのみ表示し、クリックで詳細を開く（スクロール量を減らす）。BKG検索で一致したカードは自動で開く */
   .cards-grid.compact{align-items:start;gap:10px;}
+  #allCardsGrid > .cards-grid{display:contents;}
   .cards-grid.compact .card-header{cursor:pointer;}
   .cards-grid.compact .card-header::after{content:'›';color:var(--text3);font-size:16px;margin-left:4px;transition:transform .2s;}
   .cards-grid.compact .card.open .card-header::after,
@@ -338,7 +339,7 @@
   <!-- ── 概要 ── -->
   <div class="section-label">OVERVIEW</div>
   <div class="section-title">P/O 申請とは</div>
-  <div class="section-desc">輸出ブッキング後、船社または港湾ターミナルへ空コンテナの引き取り予約を行う業務です。申請方法は船社・港によって <strong>メール</strong> または <strong>FAX</strong> の2種類あります。</div>
+  <div class="section-desc">輸出ブッキング後、船社または港湾ターミナルへ空コンテナの引き取り予約を行う業務です。申請方法は船社・港によって <strong>メール</strong>・<strong>FAX</strong>・<strong>WEB</strong> の3種類あります。</div>
 
   <div class="info-box">
     <strong>📅 ピックアップ希望日：</strong> CY OPEN日の <strong>1営業日前</strong>（土日・祝日は自動遡及）<br>
@@ -350,24 +351,35 @@
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📁 KOBE フォルダ</a>
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgB8cz52SBTWQobOuxufNfIMAU0ho7apVMwmnGzHt9eU624?e=IVVUF7" target="_blank">📁 TOKYO フォルダ</a>
     <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQDdu5bGWXY4TKbAM39456BPAdxzQ8J4jFlgJ4f4qVGh3tQ?e=r376yy" target="_blank" rel="noopener" onclick="return confirmOpenExcel('PO EXCEL.xlsx')">📊 PO EXCEL.xlsx</a>
+    <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQANO-FY5mFlRoyAuXDVneB5AWCHMrX0bBd7b3TqmyLHPX0?e=UzC7bc" target="_blank" rel="noopener" onclick="return confirmOpenExcel('FAXMAIL以外のPO申請.xlsx')">📊 FAXMAIL以外のPO申請.xlsx</a>
   </div>
 
-  <!-- ── 船社一覧 ── -->
+  <!-- ── 船社一覧（FAX・メールの船社カード ＋ WEB申請カードを1つの一覧で表示） ── -->
   <div class="section-label">CARRIER LIST</div>
   <div class="section-title">港・船社別 申請一覧</div>
-  <div class="section-desc">BKG検索後は該当カードが自動ハイライトされます。</div>
+  <div class="section-desc">FAX・メール・WEB申請の船社をまとめて表示します。BKG検索後は該当カードが自動ハイライトされます。WEB申請はP/O自動作成の対象外です。</div>
 
   <div class="filter-row">
     <div class="port-tabs">
-      <button class="port-tab active" onclick="filterPort('ALL',this)">すべて</button>
-      <button class="port-tab" onclick="filterPort('OSAKA',this)">大阪</button>
-      <button class="port-tab" onclick="filterPort('KOBE',this)">神戸</button>
-      <button class="port-tab" onclick="filterPort('TOKYO',this)">東京</button>
+      <button class="port-tab active" onclick="filterAllPort('ALL',this)">すべて</button>
+      <button class="port-tab" onclick="filterAllPort('OSAKA',this)">大阪</button>
+      <button class="port-tab" onclick="filterAllPort('KOBE',this)">神戸</button>
+      <button class="port-tab" onclick="filterAllPort('TOKYO',this)">東京</button>
+      <button class="port-tab" onclick="filterAllPort('YOKOHAMA',this)">横浜</button>
     </div>
-    <input class="search-input" type="text" id="searchInput" placeholder="船社名で検索…" oninput="filterSearch()">
+    <input class="search-input" type="text" id="searchInput" placeholder="船社名で検索…" oninput="filterAllSearch()">
     <button class="btn btn-secondary" id="clearMatchBtn" onclick="clearMatch()" style="display:none;">✕ ハイライト解除</button>
-    <button class="btn btn-secondary" onclick="toggleAllCards('cardsGrid', this)">📖 すべて開く</button>
+    <button class="btn btn-secondary" onclick="toggleAllCards('allCardsGrid', this)">📖 すべて開く</button>
+    <button class="btn btn-secondary" id="yardToggleBtn" onclick="toggleYardInfo(this)">📞 その他CY連絡先</button>
   </div>
+
+  <!-- その他CY連絡先（必要な時だけ開く） -->
+  <div id="webViewYard" class="hidden" style="margin-bottom:16px;">
+    <div id="webYardInfo"><div class="section-desc">ログインすると表示されます。</div></div>
+  </div>
+
+  <!-- 2つのグリッドをdisplay:contentsで1つの一覧に並べる（既存処理が参照する #cardsGrid はそのまま） -->
+  <div class="cards-grid compact" id="allCardsGrid">
 
   <div class="cards-grid compact" id="cardsGrid">
 
@@ -714,41 +726,12 @@
 
   </div><!-- /cards-grid -->
 
-  <!-- ── WEB申請（FAXMAIL以外のPO申請.xlsx を読み込んで表示。上の船社カード・P/O自動作成とは独立） ── -->
-  <div class="section-label">WEB APPLICATION</div>
-  <div class="section-title">WEB申請</div>
-  <div class="section-desc" style="margin-bottom:12px;">船社・ターミナル指定のサイトで申請する船社の案内です。P/O自動作成の対象外です。</div>
-  <div class="od-row" style="margin-bottom:16px;">
-    <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQANO-FY5mFlRoyAuXDVneB5AWCHMrX0bBd7b3TqmyLHPX0?e=UzC7bc" target="_blank" rel="noopener" onclick="return confirmOpenExcel('FAXMAIL以外のPO申請.xlsx')">📊 FAXMAIL以外のPO申請.xlsx</a>
-  </div>
-
-  <!-- 表示切替：POL・船社情報 ／ その他CY連絡先（必要な時だけ開く） -->
-  <div class="port-tabs" style="margin-bottom:14px;">
-    <button class="web-view-tab active" onclick="switchWebView('carrier',this)">🚢 POL・船社情報</button>
-    <button class="web-view-tab" onclick="switchWebView('yard',this)">📞 その他CY連絡先</button>
-  </div>
-
-  <div id="webViewYard" class="hidden" style="margin-bottom:48px;">
-    <div id="webYardInfo"><div class="section-desc">ログインすると表示されます。</div></div>
-  </div>
-
-  <div id="webViewCarrier">
-  <div class="filter-row">
-    <div class="port-tabs">
-      <button class="web-port-tab active" onclick="filterWebPort('ALL',this)">すべて</button>
-      <button class="web-port-tab" onclick="filterWebPort('TOKYO',this)">東京</button>
-      <button class="web-port-tab" onclick="filterWebPort('YOKOHAMA',this)">横浜</button>
-      <button class="web-port-tab" onclick="filterWebPort('OSAKA',this)">大阪</button>
-      <button class="web-port-tab" onclick="filterWebPort('KOBE',this)">神戸</button>
-    </div>
-    <input class="search-input" type="text" id="webSearchInput" placeholder="船社名で検索…" oninput="applyWebFilters()">
-    <button class="btn btn-secondary" onclick="toggleAllCards('webCardsGrid', this)">📖 すべて開く</button>
-  </div>
-
+  <!-- WEB申請カード（FAXMAIL以外のPO申請.xlsx から生成。上の船社カード・P/O自動作成とは独立） -->
   <div class="cards-grid compact" id="webCardsGrid">
-    <div class="section-desc" id="webApplyStatus">ログインすると表示されます。</div>
+    <div class="section-desc" id="webApplyStatus" style="grid-column:1/-1;">WEB申請の船社はログインすると表示されます。</div>
   </div>
-  </div><!-- /webViewCarrier -->
+
+  </div><!-- /allCardsGrid -->
 
   <!-- ── Notes ── -->
   <div class="section-label">NOTES</div>
@@ -878,7 +861,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.3',
+  version:     '1.4',
   date:        '2026-10-21',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -3189,11 +3172,31 @@ function confirmOpenExcel(name){
 }
 
 // WEB申請セクションの表示切替（POL・船社情報 ／ その他CY連絡先）
+// （現在は一覧統合により未使用。表示切替は toggleYardInfo を使用）
 function switchWebView(view, btn){
-  document.getElementById('webViewCarrier').classList.toggle('hidden', view !== 'carrier');
-  document.getElementById('webViewYard').classList.toggle('hidden', view !== 'yard');
+  document.getElementById('webViewCarrier')?.classList.toggle('hidden', view !== 'carrier');
+  document.getElementById('webViewYard')?.classList.toggle('hidden', view !== 'yard');
   document.querySelectorAll('.web-view-tab').forEach(t=>t.classList.remove('active'));
   if(btn) btn.classList.add('active');
+}
+
+// 「その他CY連絡先」の表示／非表示（必要な時だけ開く）
+function toggleYardInfo(btn){
+  const box  = document.getElementById('webViewYard');
+  const show = box.classList.contains('hidden');
+  box.classList.toggle('hidden', !show);
+  if(btn) btn.textContent = show ? '📞 その他CY連絡先を閉じる' : '📞 その他CY連絡先';
+}
+
+// 一覧の港タブ・検索：既存の船社カードの絞り込み（filterPort/filterSearch）に加えてWEB申請カードも同じ条件で絞り込む
+function filterAllPort(port, btn){
+  filterPort(port, btn);
+  _webPort = port;
+  applyWebFilters();
+}
+function filterAllSearch(){
+  filterSearch();
+  applyWebFilters();
 }
 
 // その他CY連絡先（YARD INFOシート）の強調ボックス。該当なしは空文字
@@ -3237,7 +3240,7 @@ function filterWebPort(port, btn){
   applyWebFilters();
 }
 function applyWebFilters(){
-  const q = webCompact(document.getElementById('webSearchInput')?.value);
+  const q = webCompact(document.getElementById('searchInput')?.value); // 一覧共通の検索欄
   document.querySelectorAll('#webCardsGrid .web-card').forEach(c=>{
     const portOk   = _webPort === 'ALL' || c.dataset.webPort === _webPort;
     const searchOk = !q || webCompact(c.dataset.webCarrier).includes(q);
