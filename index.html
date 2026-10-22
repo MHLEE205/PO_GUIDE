@@ -191,6 +191,11 @@
   .web-apply-box .wab-title{display:inline-block;font-size:14px;font-weight:800;letter-spacing:1px;color:#fff;background:var(--method-web);padding:3px 14px;border-radius:20px;margin-bottom:8px;}
   .web-apply-box .wab-item{padding:8px 0;border-top:1px solid var(--border);}
   .web-apply-box .wab-item:first-of-type{border-top:none;padding-top:0;}
+  /* 申請（URL・ボタン）と参考情報を区切って表示 */
+  .web-apply-box .wab-sec{border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-top:8px;}
+  .web-apply-box .wab-sec.wab-apply{border-color:var(--method-web);}
+  .web-apply-box .wab-sec-label{font-size:10.5px;font-weight:800;letter-spacing:1px;color:var(--text3);margin-bottom:4px;}
+  .web-apply-box .wab-apply .wab-sec-label{color:var(--accent);}
   .web-apply-box .wab-name{font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px;}
   .web-apply-box a{color:var(--accent);}
   .card-body{padding:13px 15px;}
@@ -868,7 +873,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.14',
+  version:     '1.15',
   date:        '2026-10-22',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -3317,14 +3322,20 @@ function webApplyBoxHtml(carrierName, polName){
     <div class="wab-title">🌐 WEB申請</div>
     ${hits.map(r => `<div class="wab-item">
       <div class="wab-name">${escapeXmlText(r.carrier)} / ${escapeXmlText(WEB_PORT_LABEL[r.port] || r.port)} ${webMethodBadge(r.method)}</div>
-      ${r.agent   ? `<div>代理店：${webTextHtml(r.agent)}</div>` : ''}
-      ${r.contact ? `<div>連絡先：${webContactHtml(r.contact)}</div>` : ''}
-      ${r.url     ? `<div style="word-break:break-all;">申請URL：<a href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">${escapeXmlText(r.url)}</a></div>` : ''}
-      ${r.url     ? `<div style="margin-top:6px;"><a class="btn btn-web" href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">🌐 申請サイトを開く</a>
-        ${r.checkUrl ? `<a class="btn btn-secondary" href="${escapeXmlText(r.checkUrl)}" target="_blank" rel="noopener">✅ 確認サイト</a>` : ''}</div>` : ''}
-      ${webCheckNote(r) ? `<div style="margin-top:4px;">確認方法：${webTextHtml(webCheckNote(r))}</div>` : ''}
-      ${r.note1 ? `<div>特記：${webTextHtml(r.note1)}</div>` : ''}
-      ${r.note2 ? `<div>特記2：${webTextHtml(r.note2)}</div>` : ''}
+      ${r.url ? `<div class="wab-sec wab-apply">
+        <div class="wab-sec-label">申請</div>
+        <div style="word-break:break-all;">申請URL：<a href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">${escapeXmlText(r.url)}</a></div>
+        <div style="margin-top:6px;"><a class="btn btn-web" href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">🌐 申請サイトを開く</a>
+        ${r.checkUrl ? `<a class="btn btn-secondary" href="${escapeXmlText(r.checkUrl)}" target="_blank" rel="noopener">✅ 確認サイト</a>` : ''}</div>
+      </div>` : ''}
+      ${(r.agent || r.contact || webCheckNote(r) || r.note1 || r.note2) ? `<div class="wab-sec">
+        <div class="wab-sec-label">参考情報</div>
+        ${r.agent   ? `<div>代理店：${webTextHtml(r.agent)}</div>` : ''}
+        ${r.contact ? `<div>連絡先：${webContactHtml(r.contact)}</div>` : ''}
+        ${webCheckNote(r) ? `<div>確認方法：${webTextHtml(webCheckNote(r))}</div>` : ''}
+        ${r.note1 ? `<div>特記：${webTextHtml(r.note1)}</div>` : ''}
+        ${r.note2 ? `<div>特記2：${webTextHtml(r.note2)}</div>` : ''}
+      </div>` : ''}
     </div>`).join('')}
   </div>`;
 }
