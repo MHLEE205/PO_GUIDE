@@ -181,6 +181,9 @@
   /* WEB申請（既存カードのセレクタに掛からないよう専用クラス） */
   .method-web{background:#0d1f33;border:1px solid #2563eb;color:#7ab8ff;}
   .btn-web{background:var(--method-web);color:#fff;}
+  /* 申請サイトを開く：青い枠の中で埋もれないよう白地＋青文字で目立たせる */
+  .btn.btn-web{background:#fff;color:var(--method-web);border:2px solid var(--method-web);font-weight:800;opacity:1;}
+  .btn.btn-web:hover{background:var(--method-web);color:#fff;}
   .web-port-tab,.web-view-tab{padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
   .web-port-tab:hover,.web-view-tab:hover{border-color:var(--accent);color:var(--accent);}
   .web-port-tab.active,.web-view-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
@@ -865,7 +868,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.12',
+  version:     '1.13',
   date:        '2026-10-22',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -3311,7 +3314,7 @@ function webApplyBoxHtml(carrierName, polName){
   const hits = webDisplayRows().filter(r => (!port || r.port === port) && webCarrierMatches(r.carrier, carrierName));
   if(!hits.length) return '';
   return `<div class="web-apply-box">
-    <div class="wab-title">🌐 WEB申請（P/O自動作成の対象外）</div>
+    <div class="wab-title">🌐 WEB申請</div>
     ${hits.map(r => `<div class="wab-item">
       <div class="wab-name">${escapeXmlText(r.carrier)} / ${escapeXmlText(WEB_PORT_LABEL[r.port] || r.port)} ${webMethodBadge(r.method)}</div>
       ${r.agent   ? `<div>代理店：${webTextHtml(r.agent)}</div>` : ''}
