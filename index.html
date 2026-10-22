@@ -357,8 +357,9 @@
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgBLqkegH9FeTI894XAa18rsAZtWttu3E2F8c0YPXIF-MZ0?e=uvobKL" target="_blank">📁 KOBE フォルダ</a>
     <a class="btn btn-primary" href="https://leenear.sharepoint.com/:f:/s/leenearsite1/IgB8cz52SBTWQobOuxufNfIMAU0ho7apVMwmnGzHt9eU624?e=IVVUF7" target="_blank">📁 TOKYO フォルダ</a>
     <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQDdu5bGWXY4TKbAM39456BPAdxzQ8J4jFlgJ4f4qVGh3tQ?e=r376yy" target="_blank" rel="noopener" onclick="return confirmOpenExcel('PO EXCEL.xlsx')">📊 PO EXCEL.xlsx</a>
-    <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQANO-FY5mFlRoyAuXDVneB5AWCHMrX0bBd7b3TqmyLHPX0?e=UzC7bc" target="_blank" rel="noopener" onclick="return confirmOpenExcel('FAXMAIL以外のPO申請.xlsx')">📊 FAXMAIL以外のPO申請.xlsx</a>
+    <a class="btn btn-secondary" href="https://leenear.sharepoint.com/:x:/s/leenearsite1/IQANO-FY5mFlRoyAuXDVneB5AWCHMrX0bBd7b3TqmyLHPX0?e=UzC7bc" target="_blank" rel="noopener" onclick="return confirmOpenExcel('PO_WEB EXCEL.xlsx')">📊 PO_WEB EXCEL.xlsx</a>
   </div>
+  <div class="section-desc" style="margin-top:-22px;">※ WEB申請の詳細は「PO_WEB EXCEL.xlsx」をご参照ください。</div>
 
   <!-- ── 船社一覧（FAX・メールの船社カード ＋ WEB申請カードを1つの一覧で表示） ── -->
   <div class="section-title">船社一覧</div>
@@ -730,7 +731,7 @@
 
   </div><!-- /cards-grid -->
 
-  <!-- WEB申請カード（FAXMAIL以外のPO申請.xlsx から生成。上の船社カード・P/O自動作成とは独立） -->
+  <!-- WEB申請カード（PO_WEB EXCEL.xlsx から生成。上の船社カード・P/O自動作成とは独立） -->
   <div class="cards-grid compact" id="webCardsGrid">
     <div class="section-desc" id="webApplyStatus" style="grid-column:1/-1;">WEB申請の船社はログインすると表示されます。</div>
   </div>
@@ -738,6 +739,7 @@
   </div><!-- /allCardsGrid -->
 
   <!-- ── Notes ── -->
+  <div class="hidden"><!-- 注意事項（非表示） -->
   <div class="section-title" style="margin-top:28px;">注意事項</div>
   <div class="notes-grid">
     <div class="note-card">
@@ -761,6 +763,7 @@
       </ul>
     </div>
   </div>
+  </div><!-- /注意事項 hidden -->
 
   <!-- ── Admin（非表示。管理者向け手順はHTMLに残す） ── -->
   <div class="hidden">
@@ -864,7 +867,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.10',
+  version:     '1.11',
   date:        '2026-10-22',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -2996,11 +2999,11 @@ function applyFilters(){
 }
 
 // ════════════════════════════════════════════
-// WEB申請（FAXMAIL以外のPO申請.xlsx）
+// WEB申請（PO_WEB EXCEL.xlsx）
 // 上の船社カード（#cardsGrid）・P/O自動作成とは独立した追加情報。
 // 既存処理のセレクタ（.port-tab / #cardsGrid .card / .card[data-carrier-key]）に掛からないよう、専用のクラス・ID・data属性を使う
 // ════════════════════════════════════════════
-const WEB_APPLY_EXCEL_URL = 'https://leenear.sharepoint.com/:x:/s/leenearsite1/IQANO-FY5mFlRoyAuXDVneB5AWCHMrX0bBd7b3TqmyLHPX0?e=UzC7bc'; // FAXMAIL以外のPO申請.xlsx のSharePoint共有リンク
+const WEB_APPLY_EXCEL_URL = 'https://leenear.sharepoint.com/:x:/s/leenearsite1/IQANO-FY5mFlRoyAuXDVneB5AWCHMrX0bBd7b3TqmyLHPX0?e=UzC7bc'; // PO_WEB EXCEL.xlsx のSharePoint共有リンク
 const WEB_PORT_LABEL = { TOKYO:'東京港', YOKOHAMA:'横浜港', OSAKA:'大阪港', KOBE:'神戸港' };
 // COMPASSの船社名がExcelの表記と大きく異なる場合の別名（スペース・ハイフンの有無は自動で吸収する）
 const WEB_CARRIER_ALIASES = { 'ONE':['OCEAN NETWORK EXPRESS'], 'CNC':['CMA CGM'] };
@@ -3065,12 +3068,12 @@ async function parseXlsxSheetWithLinks(zip, sheetPath){
   return rows;
 }
 
-// FAXMAIL以外のPO申請.xlsx を読み込む
+// PO_WEB EXCEL.xlsx を読み込む
 // URLシート列構成: A:港 B:船会社 C:代理店 D:連絡先 E:申請方法 F:申請URL G:申請完了の確認方法 H:その他1 I:その他２
 // YARD INFOシート列構成: 見出し行で判定（例 A:港 B:CY名 C:TEL D:FAX E:EMAIL）。列の並び替え・追加があっても読めるようにする
 async function loadWebApply(){
   if(_webApply) return _webApply;
-  if(!WEB_APPLY_EXCEL_URL) throw new Error('FAXMAIL以外のPO申請.xlsx の共有リンクが未設定です');
+  if(!WEB_APPLY_EXCEL_URL) throw new Error('PO_WEB EXCEL.xlsx の共有リンクが未設定です');
   const item  = await graphGet(`shares/${encodeSharingUrl(WEB_APPLY_EXCEL_URL)}/driveItem`);
   const bytes = await downloadFileBytes(item.parentReference.driveId, item.id);
   const zip   = await JSZip.loadAsync(bytes);
