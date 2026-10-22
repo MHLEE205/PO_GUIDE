@@ -232,6 +232,11 @@
   #detailsSection .collapsible-header{padding:16px 20px;}
   #detailsSection .collapsible-title{font-size:14px;}
   #detailsSection .collapsible-body{padding:4px 20px 24px;}
+  /* 開閉状態の表示（.open の有無で「開く／閉じる」を切り替え） */
+  .collapsible-state{font-size:11px;font-weight:700;color:var(--accent);border:1px solid var(--border);border-radius:12px;padding:2px 10px;}
+  .collapsible-state .cs-close{display:none;}
+  .collapsible.open > .collapsible-header .collapsible-state .cs-open{display:none;}
+  .collapsible.open > .collapsible-header .collapsible-state .cs-close{display:inline;}
 
   /* ── BKGパネル ロック状態 ── */
   #bkgPanel.locked .bkg-search-row{opacity:.4;pointer-events:none;}
@@ -343,7 +348,7 @@
     <div class="collapsible-header" onclick="toggleC('detailsSection')">
       <span>📋</span>
       <span class="collapsible-title">船社一覧・フォーム</span>
-      <span class="collapsible-arrow">›</span>
+      <span class="collapsible-state"><span class="cs-open">▼ 開く</span><span class="cs-close">▲ 閉じる</span></span>
     </div>
     <div class="collapsible-body">
 
@@ -859,7 +864,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.9',
+  version:     '1.10',
   date:        '2026-10-22',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
