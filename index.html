@@ -182,7 +182,7 @@
   .method-web{background:#0d1f33;border:1px solid #2563eb;color:#7ab8ff;}
   .btn-web{background:var(--method-web);color:#fff;}
   /* 申請サイトを開く：青い枠の中で埋もれないよう白地＋青文字で目立たせる */
-  .btn.btn-web{background:#fff;color:var(--method-web);border:2px solid var(--method-web);font-weight:800;opacity:1;}
+  .btn.btn-web{background:#fff;color:var(--method-web);border:2px solid var(--method-web);font-weight:800;font-size:12.6px;opacity:1;}
   .btn.btn-web:hover{background:var(--method-web);color:#fff;}
   .web-port-tab,.web-view-tab{padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
   .web-port-tab:hover,.web-view-tab:hover{border-color:var(--accent);color:var(--accent);}
@@ -868,7 +868,7 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.13',
+  version:     '1.14',
   date:        '2026-10-22',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
@@ -3319,6 +3319,7 @@ function webApplyBoxHtml(carrierName, polName){
       <div class="wab-name">${escapeXmlText(r.carrier)} / ${escapeXmlText(WEB_PORT_LABEL[r.port] || r.port)} ${webMethodBadge(r.method)}</div>
       ${r.agent   ? `<div>代理店：${webTextHtml(r.agent)}</div>` : ''}
       ${r.contact ? `<div>連絡先：${webContactHtml(r.contact)}</div>` : ''}
+      ${r.url     ? `<div style="word-break:break-all;">申請URL：<a href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">${escapeXmlText(r.url)}</a></div>` : ''}
       ${r.url     ? `<div style="margin-top:6px;"><a class="btn btn-web" href="${escapeXmlText(r.url)}" target="_blank" rel="noopener">🌐 申請サイトを開く</a>
         ${r.checkUrl ? `<a class="btn btn-secondary" href="${escapeXmlText(r.checkUrl)}" target="_blank" rel="noopener">✅ 確認サイト</a>` : ''}</div>` : ''}
       ${webCheckNote(r) ? `<div style="margin-top:4px;">確認方法：${webTextHtml(webCheckNote(r))}</div>` : ''}
