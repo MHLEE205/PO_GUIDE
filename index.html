@@ -873,8 +873,8 @@ function startTool(){
 LEENAI.init({
   sys:         'B-03G',
   name:        'P/O 申請ガイド',
-  version:     '1.16',
-  date:        '2026-10-22',
+  version:     '1.17',
+  date:        '2026-10-23',
   desc:        'P/O 申請の手順と注意事項',
   onReady:     startTool,
   redirectUri: 'https://mhlee205.github.io/PO_GUIDE/',
@@ -1060,6 +1060,12 @@ const PORT_COUNTRY = {
 // PAN OCEANは直行本船のため「(PUSAN T/S)」を付加しない
 const PUSAN_TS_CITIES = ['KWANGYANG','INCHEON'];
 const ALWAYS_TS_CARRIERS = ['KMTC','SINOKOR','HEUNG-A','HEUNG A','NAMSUNG','DONGYOUNG','DONG YOUNG'];
+// COMPASS上の船社名の例外表記 → ガイド上の船社名（表示・カード照合・WEB申請照合すべてに適用）
+const COMPASS_CARRIER_MAP = { 'OOCL(N)':'OOCL', 'EVERGREEN(N)':'EVER GREEN' };
+function normalizeCompassCarrier(name){
+  const n = String(name||'').trim();
+  return COMPASS_CARRIER_MAP[n.toUpperCase().replace(/\s+/g,'')] || n;
+}
 function applyPusanTs(pod, carrierName){
   const p = (pod||'').trim();
   const pu = p.toUpperCase();
@@ -2647,7 +2653,7 @@ async function searchBkg(){
       .then(d => ((d.value||[]).find(r => r._crcf9_parker_plant_id_value) || {})._crcf9_parker_plant_id_value || null)
       .catch(() => null);
     const [carrierName, polName, podNameRaw, containerQty, plantAddress] = await Promise.all([
-      carrierGuid ? dvGet(`crcf9_carriers(${carrierGuid})?$select=crcf9_carrier`).then(d=>d.crcf9_carrier).catch(()=>'(未取得)') : Promise.resolve('(未取得)'),
+      carrierGuid ? dvGet(`crcf9_carriers(${carrierGuid})?$select=crcf9_carrier`).then(d=>normalizeCompassCarrier(d.crcf9_carrier)).catch(()=>'(未取得)') : Promise.resolve('(未取得)'),
       polGuid     ? dvGet(`crcf9_region_japans(${polGuid})?$select=crcf9_pol`).then(d=>d.crcf9_pol).catch(()=>'(未取得)')          : Promise.resolve('(未取得)'),
       podGuid     ? dvGet(`cr49f_regions(${podGuid})?$select=cr49f_pod`).then(d=>d.cr49f_pod).catch(()=>'(未取得)')                 : Promise.resolve('(未取得)'),
       // ブッキング配下の全コンテナ明細(cr49f_booking_detail)のcr49f_countを合算 → 総本数
